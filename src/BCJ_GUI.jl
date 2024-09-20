@@ -237,32 +237,19 @@ if Ask_Files == true
     # filez = askopenfilenames(title="Select all experimental data nsets")
     # flz = list(filez)
     # println("Data file(s) read in: ", flz)
-    propsfile_chooser = FileChooser(FILE_CHOOSER_ACTION_OPEN_FILE,
-        "Select the props file for this material")
-    filter = FileFilter("*.csv")
-    add_allowed_suffix!(filter, "csv")
-    add_filter!(propsfile_chooser, filter)
-    on_accept!(propsfile_chooser) do self::FileChooser, files::Vector{FileDescriptor}
-        println("User chose files at $files")
-        propsfile = files
-    end
-    on_cancel!(propsfile_chooser) do self::FileChooser
-        println("User canceled the dialog")
-    end
-    present!(propsfile_chooser)
-    datafile_chooser = FileChooser(FILE_CHOOSER_ACTION_OPEN_MULTIPLE_FILES,
-        "Select all experimental datasets")
-    filter = FileFilter("*.csv")
-    add_allowed_suffix!(filter, "csv")
-    add_filter!(datafile_chooser, filter)
-    on_accept!(datafile_chooser) do self::FileChooser, files::Vector{FileDescriptor}
-        println("User chose files at $files")
-        flz .= files
-    end
-    on_cancel!(datafile_chooser) do self::FileChooser
-        println("User canceled the dialog")
-    end
-    present!(datafile_chooser)
+
+    # props_dir, props_name = dirname(propsfile), basename(propsfile)
+    # curvefile_new = save_file(props_dir, filterlist=".csv")
+    # header, df = [], DataFrame()
+    # for (i, test_name, test_strain, test_stress) in zip(range(nsets), test_cond["Name"], test_data["Model_E"], test_data["Model_VM"])
+    #     push!(header, "strain-" * test_name)
+    #     push!(header, "VMstress" * test_name)
+    #     DataFrames.hcat!(df, test_strain, test_stress)
+    # end
+    # CSV.write(curvefile_new, df, header=header)
+    # println("Model curves written to: \"", curvefile_new, "\"")
+    propsfile = pick_file(pwd(); filterlist=".csv")
+    flz = pick_multi_file(pwd(); filterlist=".csv")
 end
 # ------------------------------------------------
 # Assign props values:
