@@ -7,6 +7,8 @@ using NativeFileDialog
 
 import BammannChiesaJohnsons as BCJ
 
+constant_string(i) = (i <= 9 ? "C0$i" : "C$i")
+
 
 
 # ------------------------------------------------
@@ -58,7 +60,7 @@ ratio       = zeros(Float64, (   incnum1))  # Alphpa in relevant direction
 # ------------------------------------------------
 # ----------- Slider Range Formatting ------------
 # ------------------------------------------------
-nsliders = 21       # Index with "s in range(1,nsliders):" so s corresponds with C#
+nsliders = 20       # Index with "s in range(1,nsliders):" so s corresponds with C#
 C_amp   = Vector{Float64}(undef, nsliders)
 C_0     = Vector{Float64}(undef, nsliders)
 Slider_C= Vector{Float64}(undef, nsliders)
@@ -209,11 +211,26 @@ for (i, file) in enumerate(flz)
     end
 
     #store the stress-strain data
-    push!(test_cond["StrainRate"],  first(er))
-    push!(test_cond["Temp"],        first(T))
-    push!(test_cond["Name"],        first(name))
-    push!(test_data["Data_E"],      strn)
-    push!(test_data["Data_S"],      strs)
+    # push!(test_cond["StrainRate"],  first(er))
+    # push!(test_cond["Temp"],        first(T))
+    # push!(test_cond["Name"],        first(name))
+    # push!(test_data["Data_E"],      strn)
+    # push!(test_data["Data_S"],      strs)
+    push!(test_cond["StrainRate"],  (i, first(er)))
+    push!(test_cond["Temp"],        (i, first(T)))
+    push!(test_cond["Name"],        (i, first(name)))
+    push!(test_data["Data_E"],      (i, strn))
+    push!(test_data["Data_S"],      (i, strs))
+end
+for key in ("StrainRate", "Temp", "Name")
+    for (i, x) in enumerate(sort(test_cond[key], by=x->first(x)))
+        test_cond[key][i] = last(x)
+    end
+end
+for key in ("Data_E", "Data_S")
+    for (i, x) in enumerate(sort(test_data[key], by=x->first(x)))
+        test_data[key][i] = last(x)
+    end
 end
 
 
@@ -252,15 +269,24 @@ end
         6sum(map.(x->x^2., [Sₙ[4, :], Sₙ[5, :], Sₙ[6, :]])))
     Al     .= α[kS, :]
     # test_data[i][1] = [E,S,Al,kap,tot,SVM]             #Store model stress/strain data
-    push!(test_data["Model_E"],     E)
-    push!(test_data["Model_S"],     S)
-    push!(test_data["Model_alph"],  Al)
-    push!(test_data["Model_kap"],   κ)
-    push!(test_data["Model_tot"],   Tot)
-    push!(test_data["Model_VM"],    SVM)
+    # push!(test_data["Model_E"],     E)
+    # push!(test_data["Model_S"],     S)
+    # push!(test_data["Model_alph"],  Al)
+    # push!(test_data["Model_kap"],   κ)
+    # push!(test_data["Model_tot"],   Tot)
+    # push!(test_data["Model_VM"],    SVM)
+    push!(test_data["Model_E"],     (i, E))
+    push!(test_data["Model_S"],     (i, S))
+    push!(test_data["Model_alph"],  (i, Al))
+    push!(test_data["Model_kap"],   (i, κ))
+    push!(test_data["Model_tot"],   (i, Tot))
+    push!(test_data["Model_VM"],    (i, SVM))
 end
-# println(test_data['Model_E'])
-# println(test_data['Model_S'])
+for key in ("Model_E", "Model_S", "Model_alph", "Model_kap", "Model_tot", "Model_VM")
+    for (i, x) in enumerate(sort(test_data[key], by=x->first(x)))
+        test_data[key][i] = last(x)
+    end
+end
 
 
 
@@ -274,8 +300,8 @@ f = Figure(layout=GridLayout(1, 2), figure_padding=(plot_left, plot_right, plot_
 # w = @lift widths($(f.scene.px_area))[1]
 grid_sliders    = GridLayout(f[ 1,  1])
 grid_plot       = GridLayout(f[ 1,  2])
-# colsize!(f.layout, 1, Relative(0.5))
-# colsize!(f.layout, 2, Relative(0.5))
+# colsize!(f.layout, 1, Relative(0.45))
+# colsize!(f.layout, 2, Relative(0.45))
 
 # ------------------------------------------------
 # add textboxes for clarity
@@ -292,43 +318,50 @@ textbox_Yadj= Label(grid_sliders[10,  1], L"Y_{adj}")
 
 # ------------------------------------------------
 # make a slider for each variable
+# V
 sg_C01      = SliderGrid(grid_sliders[ 1,  2][ 1,  1], (label=L"C_{ 1}", range=0.:10.:5C_0[ 1], format="{:.3e}", startvalue=C_0[ 1])) # , width=0.4w[]))
 sg_C02      = SliderGrid(grid_sliders[ 1,  2][ 2,  1], (label=L"C_{ 2}", range=0.:10.:5C_0[ 2], format="{:.3e}", startvalue=C_0[ 2])) # , width=0.4w[]))
-
+# Y
 sg_C03      = SliderGrid(grid_sliders[ 2,  2][ 1,  1], (label=L"C_{ 3}", range=0.:10.:5C_0[ 3], format="{:.3e}", startvalue=C_0[ 3])) # , width=0.4w[]))
 sg_C04      = SliderGrid(grid_sliders[ 2,  2][ 2,  1], (label=L"C_{ 4}", range=0.:10.:5C_0[ 4], format="{:.3e}", startvalue=C_0[ 4])) # , width=0.4w[]))
-
+# f
 sg_C05      = SliderGrid(grid_sliders[ 3,  2][ 1,  1], (label=L"C_{ 5}", range=0.:10.:5C_0[ 5], format="{:.3e}", startvalue=C_0[ 5])) # , width=0.4w[]))
 sg_C06      = SliderGrid(grid_sliders[ 3,  2][ 2,  1], (label=L"C_{ 6}", range=0.:10.:5C_0[ 6], format="{:.3e}", startvalue=C_0[ 6])) # , width=0.4w[]))
-
+# rd
 sg_C07      = SliderGrid(grid_sliders[ 4,  2][ 1,  1], (label=L"C_{ 7}", range=0.:10.:5C_0[ 7], format="{:.3e}", startvalue=C_0[ 7])) # , width=0.4w[]))
 sg_C08      = SliderGrid(grid_sliders[ 4,  2][ 2,  1], (label=L"C_{ 8}", range=0.:10.:5C_0[ 8], format="{:.3e}", startvalue=C_0[ 8])) # , width=0.4w[]))
-
+# h
 sg_C09      = SliderGrid(grid_sliders[ 5,  2][ 1,  1], (label=L"C_{ 9}", range=0.:10.:5C_0[ 9], format="{:.3e}", startvalue=C_0[ 9])) # , width=0.4w[]))
 sg_C10      = SliderGrid(grid_sliders[ 5,  2][ 2,  1], (label=L"C_{10}", range=0.:10.:5C_0[10], format="{:.3e}", startvalue=C_0[10])) # , width=0.4w[]))
-
+# rs
 sg_C11      = SliderGrid(grid_sliders[ 6,  2][ 1,  1], (label=L"C_{11}", range=0.:10.:5C_0[11], format="{:.3e}", startvalue=C_0[11])) # , width=0.4w[]))
 sg_C12      = SliderGrid(grid_sliders[ 6,  2][ 2,  1], (label=L"C_{12}", range=0.:10.:5C_0[12], format="{:.3e}", startvalue=C_0[12])) # , width=0.4w[]))
-
+# Rd
 sg_C13      = SliderGrid(grid_sliders[ 7,  2][ 1,  1], (label=L"C_{13}", range=0.:10.:5C_0[13], format="{:.3e}", startvalue=C_0[13])) # , width=0.4w[]))
 sg_C14      = SliderGrid(grid_sliders[ 7,  2][ 2,  1], (label=L"C_{14}", range=0.:10.:5C_0[14], format="{:.3e}", startvalue=C_0[14])) # , width=0.4w[]))
-
+# H
 sg_C15      = SliderGrid(grid_sliders[ 8,  2][ 1,  1], (label=L"C_{15}", range=0.:10.:5C_0[15], format="{:.3e}", startvalue=C_0[15])) # , width=0.4w[]))
 sg_C16      = SliderGrid(grid_sliders[ 8,  2][ 2,  1], (label=L"C_{16}", range=0.:10.:5C_0[16], format="{:.3e}", startvalue=C_0[16])) # , width=0.4w[]))
-
+# Rs
 sg_C17      = SliderGrid(grid_sliders[ 9,  2][ 1,  1], (label=L"C_{17}", range=0.:10.:5C_0[17], format="{:.3e}", startvalue=C_0[17])) # , width=0.4w[]))
 sg_C18      = SliderGrid(grid_sliders[ 9,  2][ 2,  1], (label=L"C_{18}", range=0.:10.:5C_0[18], format="{:.3e}", startvalue=C_0[18])) # , width=0.4w[]))
-
+# Yadj
 sg_C19      = SliderGrid(grid_sliders[10,  2][ 1,  1], (label=L"C_{19}", range=0.:10.:5C_0[19], format="{:.3e}", startvalue=C_0[19])) # , width=0.4w[]))
 sg_C20      = SliderGrid(grid_sliders[10,  2][ 2,  1], (label=L"C_{20}", range=0.:10.:5C_0[20], format="{:.3e}", startvalue=C_0[20])) # , width=0.4w[]))
 
 sg_constants = [
-    sg_C01, sg_C02, sg_C03, sg_C04, sg_C05,
-    sg_C06, sg_C07, sg_C08, sg_C09, sg_C10,
-    sg_C11, sg_C12, sg_C13, sg_C14, sg_C15,
-    sg_C16, sg_C17, sg_C18, sg_C19, sg_C20
+    sg_C01, sg_C02, # V
+    sg_C03, sg_C04, # Y
+    sg_C05, sg_C06, # f
+    sg_C07, sg_C08, # rd
+    sg_C09, sg_C10, # h
+    sg_C11, sg_C12, # rs
+    sg_C13, sg_C14, # Rd
+    sg_C15, sg_C16, # H
+    sg_C17, sg_C18, # Rs
+    sg_C19, sg_C20  # Yadj
 ]
-sg_observables = [sgcs.value for sgcs in [only(sgc.sliders) for sgc in sg_constants]]
+# sg_observables = [sgcs.value for sgcs in [only(sgc.sliders) for sgc in sg_constants]]
 
 # lines[1] = data
 # lines[2] = model (to be updated)
@@ -362,20 +395,20 @@ for i in range(1, nsets)
     end
 end
 
-for (i, ds) in zip(range(1, nsets), dataseries)
+for i in range(1, nsets)
     # println(test_data[i][1][0])
     # println(test_data[i][1][5])
 
-    scatter!(ax,    @lift(Point2f.($(ds[1]).x, $(ds[1]).y)), color=[i], colormap=:viridis, colorrange=(1, nsets), label="Data - " * test_cond["Name"][i])
-    lines!(ax,      @lift(Point2f.($(ds[2]).x, $(ds[2]).y)), color=[i], colormap=:viridis, colorrange=(1, nsets), label="VM Model - " * test_cond["Name"][i])
+    scatter!(ax,    @lift(Point2f.($(dataseries[1][i]).x, $(dataseries[1][i]).y)), colormap=:viridis, colorrange=(1, nsets), label="Data - " * test_cond["Name"][i])
+    lines!(ax,      @lift(Point2f.($(dataseries[2][i]).x, $(dataseries[2][i]).y)), colormap=:viridis, colorrange=(1, nsets), label="VM Model - " * test_cond["Name"][i])
     if Plot_ISVs
-        scatter!(ax,    @lift(Point2f.($(ds[3]).x, $(ds[3]).y)), color=i, colormap=:viridis, colorrange=(1, nsets), label="\$\\alpha\$ - " * test_cond["Name"][i])
-        lines!(ax,      @lift(Point2f.($(ds[4]).x, $(ds[4]).y)), color=i, colormap=:viridis, colorrange=(1, nsets), label="\$\\kappa\$ - " * test_cond["Name"][i])
-        # scatter(ax,     @lift(Point2f.($(ds[5]).x, $(ds[5]).y)), color = i, colormap=:viridis , label="\$total\$ - " * test_cond["Name"][i]))
-        # lines(ax,       @lift(Point2f.($(ds[6]).x, $(ds[6]).y)), color = i, colormap=:viridis , label="\$S_{11}\$ - " * test_cond["Name"][i]))
+        scatter!(ax,    @lift(Point2f.($(dataseries[3][i]).x, $(dataseries[3][i]).y)), colormap=:viridis, colorrange=(1, nsets), label="\$\\alpha\$ - " * test_cond["Name"][i])
+        lines!(ax,      @lift(Point2f.($(dataseries[4][i]).x, $(dataseries[4][i]).y)), colormap=:viridis, colorrange=(1, nsets), label="\$\\kappa\$ - " * test_cond["Name"][i])
+        # scatter(ax,     @lift(Point2f.($(dataseries[5][i]).x, $(dataseries[5][i]).y)), colormap=:viridis , label="\$total\$ - " * test_cond["Name"][i]))
+        # lines(ax,       @lift(Point2f.($(dataseries[6][i]).x, $(dataseries[6][i]).y)), colormap=:viridis , label="\$S_{11}\$ - " * test_cond["Name"][i]))
     end
 end
-
+# update(params)
 axislegend(ax, position=:lt)
 
 buttons_grid = GridLayout(grid_plot[10,  1], 1, 3)
@@ -389,19 +422,18 @@ buttons_exportbutton    = buttons[3]
 # ------------------------------------------------
 
 # The function to be called anytime a slider's value changes
-for (i, sgo) in enumerate(sg_observables)
-    on(sgo) do n
+for (i, sgc) in enumerate(sg_constants)
+    on(only(sgc.sliders).value) do val
         # redefine params with new slider values
-        key = i <= 9 ? "C0$i" : "C$i"
-        params[][key] = to_value(sgo)
-        notify(params)
-        update(params)
+        key = constant_string(i)
+        params[][key] = to_value(val)
+        notify(params); update(params)
     end
 end
 
 function update(params)
-    # @sync @distributed for i in range(1, nsets)
-    for i in range(1, nsets)
+    @sync @distributed for i in range(1, nsets)
+    # for i in range(1, nsets)
         emax = maximum(test_data["Data_E"][i])
         # println('Setup: emax for set ',i,' = ', emax)
         bcj_ref = BCJ.BCJ_metal(
@@ -435,7 +467,7 @@ function update(params)
         end
     end
     return nothing
-end
+end; update(params)
 
 
 # ------------------------------------------------
@@ -449,19 +481,22 @@ end
 #     end
 # end
 on(buttons_resetbutton.clicks) do click
-    for (sg, c) in zip(sg_constants, C_0)
-        set_close_to!(sg, c)
+    for (i, c, sgc) in zip(range(1, nsliders), C_0, sg_constants)
+        key = constant_string(i)
+        params[][key]       = to_value(c); notify(params)
+        set_close_to!(sgc.sliders[1], c)
+        sgc.sliders[1].value[] = to_value(c)
+        notify(sgc.sliders[1].value)
     end
 end
 
 on(buttons_savebutton.clicks) do click
     props_dir, props_name = dirname(propsfile), basename(propsfile)
-    propsfile_new = save_file(props_dir, filterlist=".csv")
+    # "Save new props file"
+    propsfile_new = save_file(; filterlist="csv")
     df = DataFrame(
-        (
-            "Constants" => [[i <= 9 ? "C0$i" : "C$i" for i in range(1, C_0)]..., "Bulk Mod", "Shear Mod"],
-            "Values"    => [[sgc.value for sgc in sg_constants]..., bulk_mod, shear_mod]
-        )
+        "Constants" => [constant_string.(range(1, nsliders))..., "Bulk Mod", "Shear Mod"],
+        "Values"    => [[only(sgc.sliders).value[] for sgc in sg_constants]..., bulk_mod, shear_mod]
     )
     CSV.write(propsfile_new, df)
     println("New props file written to: \"", propsfile_new, "\"")
@@ -469,12 +504,14 @@ end
 
 on(buttons_exportbutton.clicks) do click
     props_dir, props_name = dirname(propsfile), basename(propsfile)
-    curvefile_new = save_file(props_dir, filterlist=".csv")
+    curvefile_new = save_file(; filterlist="csv")
     header, df = [], DataFrame()
     for (i, test_name, test_strain, test_stress) in zip(range(1, nsets), test_cond["Name"], test_data["Model_E"], test_data["Model_VM"])
         push!(header, "strain-" * test_name)
         push!(header, "VMstress" * test_name)
-        DataFrames.hcat!(df, test_strain, test_stress)
+        DataFrames.hcat!(df, DataFrame(
+            "strain-" * test_name   => test_strain,
+            "VMstress" * test_name  => test_stress))
     end
     CSV.write(curvefile_new, df, header=header)
     println("Model curves written to: \"", curvefile_new, "\"")
