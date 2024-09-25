@@ -129,6 +129,7 @@ files = [
     "path/to1.csv",
     "path/to2.csv"
 ]
+include("filepaths.jl")
 # ------------------------------------------------
 # Assign props values:
 df = CSV.read(propsfile, DataFrame; header=true, delim=',', types=[String, Float64])

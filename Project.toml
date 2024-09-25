@@ -14,7 +14,7 @@ NativeFileDialog = "e1fe445b-aa65-4df4-81c1-2041507f0fd4"
 NumericalMethods = "154d3d63-62f4-4409-ad1c-5b6779bffd36"
 
 [compat]
-julia = "1.6.7"
+julia = "1.10.5"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
