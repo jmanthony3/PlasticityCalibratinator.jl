@@ -7,8 +7,6 @@ using NativeFileDialog
 
 import BammannChiesaJohnsons as BCJ
 
-constant_string(i) = (i <= 9 ? "C0$i" : "C$i")
-
 
 
 # ------------------------------------------------
@@ -26,15 +24,6 @@ max_stress  = 3000 * 1000000
 
 if Material == "4340"
     max_stress  = 2000 * 1000000
-end
-
-
-
-# ------------------------------------------------
-# ------------------------------------------------
-kS          = 1     # default tension component
-if istate == 2
-    kS      = 4     # select torsion component
 end
 
 
@@ -113,7 +102,7 @@ plot_right  = 0.95
 # Read in Props and Data files from .csv files
 # ------------------------------------------------
 propsfile::String = ""
-flz::Vector{String} = []
+files::Vector{String} = []
 # if Ask_Files == true
 #     # Tk().withdraw()
 #     # propsfile = askopenfilename(title="Select the props file for this material")
@@ -136,7 +125,7 @@ flz::Vector{String} = []
 #     flz = pick_multi_file(pwd(); filterlist="csv")
 # end
 propsfile = "path/to.csv"
-flz = [
+files = [
     "path/to1.csv",
     "path/to2.csv"
 ]
@@ -175,118 +164,13 @@ params = Observable(Dict(
 ))
 # ------------------------------------------------
 # store stress-strain data and corresponding test conditions (temp and strain rate)
-nsets = length(flz)
-# test_cond   = []         # Used to store testing conditions (temp, strain rate)
-# test_data   = []         # Used to store data
-test_cond   = Dict(
-    "StrainRate"    => [],
-    "Temp"          => [],
-    "Name"          => []
-)
-test_data   = Dict(
-    "Data_E"        => [],
-    "Data_S"        => [],
-    "Model_E"       => [],
-    "Model_S"       => [],
-    "Model_VM"      => [],
-    "Model_alph"    => [],
-    "Model_kap"     => [],
-    "Model_tot"     => []
-)
-
-# FORMATTING: test_data[i][[e_data,s_data] , [e_model,s_model] , [e_err, s_err]]
-
-for (i, file) in enumerate(flz)
-    df_file = CSV.read(file, DataFrame; header=true, delim=',', types=[Float64, Float64, Float64, Float64, String])
-
-    # add stress/strain data:
-    strn = df_file[!, "Strain"]
-    strs = df_file[!, "Stress"] .* Scale_MPa
-    er   = df_file[!, "Strain Rate"]
-    T    = df_file[!, "Temperature"]
-    name = df_file[!, "Name"]
-    # check data entered
-    if length(strn) != length(strs)
-        println("ERROR! Data from  '", file , "'  has bad stress-strain data lengths")
-    end
-
-    #store the stress-strain data
-    # push!(test_cond["StrainRate"],  first(er))
-    # push!(test_cond["Temp"],        first(T))
-    # push!(test_cond["Name"],        first(name))
-    # push!(test_data["Data_E"],      strn)
-    # push!(test_data["Data_S"],      strs)
-    push!(test_cond["StrainRate"],  (i, first(er)))
-    push!(test_cond["Temp"],        (i, first(T)))
-    push!(test_cond["Name"],        (i, first(name)))
-    push!(test_data["Data_E"],      (i, strn))
-    push!(test_data["Data_S"],      (i, strs))
-end
-for key in ("StrainRate", "Temp", "Name")
-    for (i, x) in enumerate(sort(test_cond[key], by=x->first(x)))
-        test_cond[key][i] = last(x)
-    end
-end
-for key in ("Data_E", "Data_S")
-    for (i, x) in enumerate(sort(test_data[key], by=x->first(x)))
-        test_data[key][i] = last(x)
-    end
-end
-
-
-
-# -----------------------------------------------
-
-
-
-
-# -----------------------------------------------------
-# Calculate the model's initial stress-strain curve 
-# -----------------------------------------------------
-
-# FORMATTING: test_data[i][[e_data,s_data] , [e_model,s_model] , [e_err, s_err]]
-# For each set, calculate the model curve and error
-@sync @distributed for i in range(1, nsets)
-# for i in range(1, nsets)
-    emax = maximum(test_data["Data_E"][i])
-    # println('Setup: emax for set ',i,' = ', emax)
-    bcj_ref = BCJ.BCJ_metal(
-        test_cond["Temp"][i], test_cond["StrainRate"][i],
-        emax, incnum, istate, params[])
-    bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref)
-    BCJ.solve!(bcj_current)
-    ϵₙ = bcj_current.ϵₜₒₜₐₗ
-    Sₙ = bcj_current.S
-    α = bcj_current.α
-    κ = bcj_current.κ
-    Tot = bcj_current.Tot
-
-    # pull only the relevant (tension/torsion) strain being evaluated:
-
-    E      .= ϵₙ[kS, :]
-    S      .= Sₙ[kS, :]
-    SVM    .= sum(map.(x->x^2., [Sₙ[1, :] - Sₙ[2, :], Sₙ[2, :] - Sₙ[3, :], Sₙ[3, :] - Sₙ[1, :]])) + (
-        6sum(map.(x->x^2., [Sₙ[4, :], Sₙ[5, :], Sₙ[6, :]])))
-    Al     .= α[kS, :]
-    # test_data[i][1] = [E,S,Al,kap,tot,SVM]             #Store model stress/strain data
-    # push!(test_data["Model_E"],     E)
-    # push!(test_data["Model_S"],     S)
-    # push!(test_data["Model_alph"],  Al)
-    # push!(test_data["Model_kap"],   κ)
-    # push!(test_data["Model_tot"],   Tot)
-    # push!(test_data["Model_VM"],    SVM)
-    push!(test_data["Model_E"],     (i, E))
-    push!(test_data["Model_S"],     (i, S))
-    push!(test_data["Model_alph"],  (i, Al))
-    push!(test_data["Model_kap"],   (i, κ))
-    push!(test_data["Model_tot"],   (i, Tot))
-    push!(test_data["Model_VM"],    (i, SVM))
-end
-for key in ("Model_E", "Model_S", "Model_alph", "Model_kap", "Model_tot", "Model_VM")
-    for (i, x) in enumerate(sort(test_data[key], by=x->first(x)))
-        test_data[key][i] = last(x)
-    end
-end
+nsets = length(files)
+bcj = BCJ.BCJ_metal_calibrate_init(files, incnum, istate, params, Scale_MPa)
+# lines[1] = data
+# lines[2] = model (to be updated)
+# lines[3] = alpha model (to be updated)
+# lines[4] = kappa model (to be updated)
+dataseries = BCJ.dataseries_init(nsets, bcj.test_data, Plot_ISVs)
 
 
 
@@ -363,15 +247,22 @@ sg_constants = [
 ]
 # sg_observables = [sgcs.value for sgcs in [only(sgc.sliders) for sgc in sg_constants]]
 
-# lines[1] = data
-# lines[2] = model (to be updated)
-# lines[3] = alpha model (to be updated)
-# lines[4] = kappa model (to be updated)
-dataseries = if Plot_ISVs
-    [[],[],[],[],[],[]]
-else
-    [[],[]]
+# The function to be called anytime a slider's value changes
+for (i, sgc) in enumerate(sg_constants)
+    on(only(sgc.sliders).value) do val
+        # redefine params with new slider values
+        key = BCJ.constant_string(i)
+        params[][key] = to_value(val)
+        notify(params); BCJ.update!(dataseries, bcj, incnum, istate, Plot_ISVs)
+    end
 end
+
+
+
+
+
+
+
 
 ax = Axis(grid_plot[ 1: 9,  1],
     xlabel="True Strain (mm/mm)",
@@ -384,32 +275,23 @@ for i in range(1, nsets)
     # println(test_data[i][1][0])
     # println(test_data[i][1][5])
 
-    push!(dataseries[1], Observable(DataFrame(x=test_data["Data_E"][i], y=test_data["Data_S"][i])))
-    push!(dataseries[2], Observable(DataFrame(x=test_data["Model_E"][i], y=test_data["Model_VM"][i])))
-
+    scatter!(ax,    @lift(Point2f.($(dataseries[1][i]).x, $(dataseries[1][i]).y)),
+        colormap=:viridis, colorrange=(1, nsets), label="Data - " * bcj.test_cond["Name"][i])
+    lines!(ax,      @lift(Point2f.($(dataseries[2][i]).x, $(dataseries[2][i]).y)),
+        colormap=:viridis, colorrange=(1, nsets), label="VM Model - " * bcj.test_cond["Name"][i])
     if Plot_ISVs
-        push!(dataseries[3], Observable(DataFrame(x=test_data["Data_E"][i], y=test_data["Model_alph"][i])))
-        push!(dataseries[4], Observable(DataFrame(x=test_data["Model_E"][i], y=test_data["Model_kap"][i])))
-        # push!(dataseries[5], Observable(DataFrame(x=test_data["Data_E"][i], y=test_data["Model_tot"][i])))
-        # push!(dataseries[6], Observable(DataFrame(x=test_data["Model_E"][i], y=test_data["Model_S"][i])))
+        scatter!(ax,    @lift(Point2f.($(dataseries[3][i]).x, $(dataseries[3][i]).y)),
+            colormap=:viridis, colorrange=(1, nsets), label="\$\\alpha\$ - " * bcj.test_cond["Name"][i])
+        lines!(ax,      @lift(Point2f.($(dataseries[4][i]).x, $(dataseries[4][i]).y)),
+            colormap=:viridis, colorrange=(1, nsets), label="\$\\kappa\$ - " * bcj.test_cond["Name"][i])
+        # scatter(ax,     @lift(Point2f.($(dataseries[5][i]).x, $(dataseries[5][i]).y)),
+        #     colormap=:viridis , label="\$total\$ - " * bcj.test_cond["Name"][i]))
+        # lines(ax,       @lift(Point2f.($(dataseries[6][i]).x, $(dataseries[6][i]).y)),
+        #     colormap=:viridis , label="\$S_{11}\$ - " * bcj.test_cond["Name"][i]))
     end
 end
-
-for i in range(1, nsets)
-    # println(test_data[i][1][0])
-    # println(test_data[i][1][5])
-
-    scatter!(ax,    @lift(Point2f.($(dataseries[1][i]).x, $(dataseries[1][i]).y)), colormap=:viridis, colorrange=(1, nsets), label="Data - " * test_cond["Name"][i])
-    lines!(ax,      @lift(Point2f.($(dataseries[2][i]).x, $(dataseries[2][i]).y)), colormap=:viridis, colorrange=(1, nsets), label="VM Model - " * test_cond["Name"][i])
-    if Plot_ISVs
-        scatter!(ax,    @lift(Point2f.($(dataseries[3][i]).x, $(dataseries[3][i]).y)), colormap=:viridis, colorrange=(1, nsets), label="\$\\alpha\$ - " * test_cond["Name"][i])
-        lines!(ax,      @lift(Point2f.($(dataseries[4][i]).x, $(dataseries[4][i]).y)), colormap=:viridis, colorrange=(1, nsets), label="\$\\kappa\$ - " * test_cond["Name"][i])
-        # scatter(ax,     @lift(Point2f.($(dataseries[5][i]).x, $(dataseries[5][i]).y)), colormap=:viridis , label="\$total\$ - " * test_cond["Name"][i]))
-        # lines(ax,       @lift(Point2f.($(dataseries[6][i]).x, $(dataseries[6][i]).y)), colormap=:viridis , label="\$S_{11}\$ - " * test_cond["Name"][i]))
-    end
-end
-# update(params)
 axislegend(ax, position=:lt)
+BCJ.update!(dataseries, bcj, incnum, istate, Plot_ISVs)
 
 buttons_grid = GridLayout(grid_plot[10,  1], 1, 3)
 buttons_labels = ["Reset", "Save Props", "Export Curves"]
@@ -420,54 +302,6 @@ buttons_exportbutton    = buttons[3]
 
 
 # ------------------------------------------------
-
-# The function to be called anytime a slider's value changes
-for (i, sgc) in enumerate(sg_constants)
-    on(only(sgc.sliders).value) do val
-        # redefine params with new slider values
-        key = constant_string(i)
-        params[][key] = to_value(val)
-        notify(params); update(params)
-    end
-end
-
-function update(params)
-    @sync @distributed for i in range(1, nsets)
-    # for i in range(1, nsets)
-        emax = maximum(test_data["Data_E"][i])
-        # println('Setup: emax for set ',i,' = ', emax)
-        bcj_ref = BCJ.BCJ_metal(
-            test_cond["Temp"][i], test_cond["StrainRate"][i],
-            emax, incnum, istate, params[])
-        bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref)
-        BCJ.solve!(bcj_current)
-        ϵₙ = bcj_current.ϵₜₒₜₐₗ
-        Sₙ = bcj_current.S
-        α = bcj_current.α
-        κ = bcj_current.κ
-        Tot = bcj_current.Tot
-
-        # pull only the relevant (tension/torsion) strain being evaluated:
-        E      .= ϵₙ[kS, :]
-        S      .= Sₙ[kS, :]
-        SVM    .= sum(map.(x->x^2., [Sₙ[1, :] - Sₙ[2, :], Sₙ[2, :] - Sₙ[3, :], Sₙ[3, :] - Sₙ[1, :]])) + (
-            6sum(map.(x->x^2., [Sₙ[4, :], Sₙ[5, :], Sₙ[6, :]])))
-        SVM    .= sqrt.(SVM .* 0.5)
-        Al     .= α[kS, :]
-
-        dataseries[2][i][].y .= SVM
-        if Plot_ISVs
-            dataseries[3][i][].y .= Al
-            dataseries[4][i][].y .= kap
-            # dataseries[5][i][].y .= tot
-            # dataseries[6][i][].y .= S
-        end
-        for ds in dataseries[2:end]
-            notify(ds[i])
-        end
-    end
-    return nothing
-end; update(params)
 
 
 # ------------------------------------------------
@@ -482,7 +316,7 @@ end; update(params)
 # end
 on(buttons_resetbutton.clicks) do click
     for (i, c, sgc) in zip(range(1, nsliders), C_0, sg_constants)
-        key = constant_string(i)
+        key = BCJ.constant_string(i)
         params[][key]       = to_value(c); notify(params)
         set_close_to!(sgc.sliders[1], c)
         sgc.sliders[1].value[] = to_value(c)
@@ -495,7 +329,7 @@ on(buttons_savebutton.clicks) do click
     # "Save new props file"
     propsfile_new = save_file(; filterlist="csv")
     df = DataFrame(
-        "Constants" => [constant_string.(range(1, nsliders))..., "Bulk Mod", "Shear Mod"],
+        "Constants" => [BCJ.constant_string.(range(1, nsliders))..., "Bulk Mod", "Shear Mod"],
         "Values"    => [[only(sgc.sliders).value[] for sgc in sg_constants]..., bulk_mod, shear_mod]
     )
     CSV.write(propsfile_new, df)
@@ -506,7 +340,7 @@ on(buttons_exportbutton.clicks) do click
     props_dir, props_name = dirname(propsfile), basename(propsfile)
     curvefile_new = save_file(; filterlist="csv")
     header, df = [], DataFrame()
-    for (i, test_name, test_strain, test_stress) in zip(range(1, nsets), test_cond["Name"], test_data["Model_E"], test_data["Model_VM"])
+    for (i, test_name, test_strain, test_stress) in zip(range(1, nsets), bcj.test_cond["Name"], bcj.test_data["Model_E"], bcj.test_data["Model_VM"])
         push!(header, "strain-" * test_name)
         push!(header, "VMstress" * test_name)
         DataFrames.hcat!(df, DataFrame(
