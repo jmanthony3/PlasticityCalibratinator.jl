@@ -7,7 +7,7 @@ struct BCJ_metal_calibrate
     nsets       ::Int64
     test_data   ::Dict{String, Vector}
     test_cond   ::Dict{String, Vector}
-    params      ::Observable{Dict{String, Float64}}
+    params      ::Dict{String, Float64}
 end
 
 constant_string(i) = (i <= 9 ? "C0$i" : "C$i")
@@ -49,7 +49,7 @@ function BCJ_metal_calibrate_kernel(test_data, test_cond, incnum, istate, params
     # println('Setup: emax for set ',i,' = ', emax)
     bcj_ref     = BCJ_metal(
         test_cond["Temp"][i], test_cond["StrainRate"][i],
-        emax, incnum, istate, params[])
+        emax, incnum, istate, params)
     bcj_current = BCJ_metal_currentconfiguration_init(bcj_ref)
     solve!(bcj_current)
     ϵₙ          = bcj_current.ϵₜₒₜₐₗ
