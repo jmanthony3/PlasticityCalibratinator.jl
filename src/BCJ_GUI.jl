@@ -171,7 +171,31 @@ function BCJ_metal_calibrate_update!(BCJ::BCJ_metal_calibrate, incnum, istate, i
     return nothing
 end
 
-function update!(dataseries, BCJ::BCJ_metal_calibrate, incnum, istate, Plot_ISVs)
+function plot_sets!(ax, dataseries, BCJ::BCJ_metal_calibrate, Plot_ISVs)
+    # empty!(ax); !isnothing(leg) ? delete!(leg) : nothing
+    for i in range(1, BCJ.nsets)
+        # println(test_data[i][1][0])
+        # println(test_data[i][1][5])
+
+        scatter!(ax,    @lift(Point2f.($(dataseries[1][i]).x, $(dataseries[1][i]).y)),
+            colormap=:viridis, colorrange=(1, BCJ.nsets), label="Data - " * BCJ.test_cond["Name"][i])
+        lines!(ax,      @lift(Point2f.($(dataseries[2][i]).x, $(dataseries[2][i]).y)),
+            colormap=:viridis, colorrange=(1, BCJ.nsets), label="VM Model - " * BCJ.test_cond["Name"][i])
+        if Plot_ISVs
+            scatter!(ax,    @lift(Point2f.($(dataseries[3][i]).x, $(dataseries[3][i]).y)),
+                colormap=:viridis, colorrange=(1, BCJ.nsets), label="\$\\alpha\$ - " * BCJ.test_cond["Name"][i])
+            lines!(ax,      @lift(Point2f.($(dataseries[4][i]).x, $(dataseries[4][i]).y)),
+                colormap=:viridis, colorrange=(1, BCJ.nsets), label="\$\\kappa\$ - " * BCJ.test_cond["Name"][i])
+            # scatter(ax,     @lift(Point2f.($(dataseries[5][i]).x, $(dataseries[5][i]).y)),
+            #     colormap=:viridis , label="\$total\$ - " * bcj.test_cond["Name"][i]))
+            # lines(ax,       @lift(Point2f.($(dataseries[6][i]).x, $(dataseries[6][i]).y)),
+            #     colormap=:viridis , label="\$S_{11}\$ - " * bcj.test_cond["Name"][i]))
+        end
+    end
+    # !isnothing(leg) ? (leg = axislegend(ax, position=:lt)) : nothing
+end
+
+function update!(ax, leg, dataseries, BCJ::BCJ_metal_calibrate, incnum, istate, Plot_ISVs)
     @sync @distributed for i in range(1, BCJ.nsets)
     # for i in range(1, nsets)
         BCJ_metal_calibrate_update!(BCJ, incnum, istate, i)
@@ -186,5 +210,6 @@ function update!(dataseries, BCJ::BCJ_metal_calibrate, incnum, istate, Plot_ISVs
             notify(ds[i])
         end
     end
+    # plot_sets!(ax, leg, dataseries, BCJ, Plot_ISVs)
     return nothing
 end

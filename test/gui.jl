@@ -1,3 +1,4 @@
+# gui.jl
 using CSV
 using DataFrames
 using Distributed
@@ -8,138 +9,66 @@ using NativeFileDialog
 import BammannChiesaJohnsons as BCJ
 
 
+set_theme!(theme_latexfonts())
 
-# ------------------------------------------------
-# ---------- User Modifiable Variables -----------
-# ------------------------------------------------
-incnum      = 200
+
+
+# default values
+incnum      = Observable(200)
 istate      = 1      #1 = tension, 2 = torsion
 Ask_Files   = true
 Material    = "4340"
 Plot_ISVs   = false
-
-
-Scale_MPa   = 1000000           # Unit conversion from MPa to Pa from data
-max_stress  = 3000 * 1000000
+MPa         = 1e6           # Unit conversion from MPa to Pa from data
+min_stress  = 0.
+max_stress  = 3000 * MPa
 
 if Material == "4340"
-    max_stress  = 2000 * 1000000
+    max_stress  = 2000 * MPa
 end
 
-
-# -------- Holding Variable Declarations --------
-incnum1     = incnum + 1                    # +1 so that 100 increments between 0 and 1 are 0.01
-Sₙ          = zeros(Float64, (6, incnum1))  # Total stress state
-S           = zeros(Float64, (   incnum1))  # Stress in relevant direction
-SVM         = zeros(Float64, (   incnum1))  # VM Stress
-ϵₙ          = zeros(Float64, (6, incnum1))  # Total stress state
-E           = zeros(Float64, (   incnum1))  # Stress in relevant direction
-Al          = zeros(Float64, (   incnum1))  # Alphpa in relevant direction
-ratio       = zeros(Float64, (   incnum1))  # Alphpa in relevant direction
-
-
-# ------------ Plot Formatting ------------
-# colors      = :viridis
-# lstyles     = [:solid, :dotted]
-
-
-
-
-
-# ------------------------------------------------
-# ----------- Slider Range Formatting ------------
-# ------------------------------------------------
+## sliders
 nsliders = 20       # Index with "s in range(1,nsliders):" so s corresponds with C#
 C_amp   = Vector{Float64}(undef, nsliders)
 C_0     = Vector{Float64}(undef, nsliders)
 Slider_C= Vector{Float64}(undef, nsliders)
 
-
-# +/- range on sliders
+### amplitude range on sliders
+# 
 C_amp[1]    = 300.0
 C_amp[2]    = 300.0
 C_amp[3]    = 100.0
 C_amp[4]    = 300.1
 C_amp[5]    = 0.5
 C_amp[6]    = 300.0
-
+# 
 C_amp[7]    = 0.0001
 C_amp[8]    = 300.0
 C_amp[9]    = 600.0
 C_amp[10]   = 10.0
 C_amp[11]   = 3.0
 C_amp[12]   = 300.0
-
+# 
 C_amp[13]   = 1.0
 C_amp[14]   = 300.0
 C_amp[15]   = 600.0
 C_amp[16]   = 10.0
 C_amp[17]   = 3.0
 C_amp[18]   = 300.0
-
+# 
 C_amp[19]   = 10.0
 C_amp[20]   = 300.0
 
 
-# ------------------------------------------------
-# ------------ GUI Layout Positioning ------------
-# ------------------------------------------------
-
-# Plot and Positions:
-plot_bot    = 0.2
-plot_left   = 0.5
-plot_top    = 0.95
-plot_right  = 0.95
-
-
-# ------------------------------------------------
-# ------------------------------------------------
-# ------------------------------------------------
-# ------------------------------------------------
-
-
-# ------------------------------------------------
-# Read in Props and Data files from .csv files
-# ------------------------------------------------
-propsfile::String = ""
-files::Vector{String} = []
-# if Ask_Files == true
-#     # Tk().withdraw()
-#     # propsfile = askopenfilename(title="Select the props file for this material")
-#     # println("Props file read in  : ", propsfile)
-#     # filez = askopenfilenames(title="Select all experimental data nsets")
-#     # flz = list(filez)
-#     # println("Data file(s) read in: ", flz)
-
-#     # props_dir, props_name = dirname(propsfile), basename(propsfile)
-#     # curvefile_new = save_file(props_dir, filterlist=".csv")
-#     # header, df = [], DataFrame()
-#     # for (i, test_name, test_strain, test_stress) in zip(range(1, nsets), test_cond["Name"], test_data["Model_E"], test_data["Model_VM"])
-#     #     push!(header, "strain-" * test_name)
-#     #     push!(header, "VMstress" * test_name)
-#     #     DataFrames.hcat!(df, test_strain, test_stress)
-#     # end
-#     # CSV.write(curvefile_new, df, header=header)
-#     # println("Model curves written to: \"", curvefile_new, "\"")
-#     propsfile = pick_file(pwd(); filterlist="csv")
-#     flz = pick_multi_file(pwd(); filterlist="csv")
-# end
-propsfile = "path/to.csv"
-files = [
-    "path/to1.csv",
-    "path/to2.csv"
-]
+# material properties
 include("filepaths.jl")
-# ------------------------------------------------
-# Assign props values:
-df = CSV.read(propsfile, DataFrame; header=true, delim=',', types=[String, Float64])
+propsfile   = Observable(propsfile) # trying to switch over to observable
+df          = CSV.read(propsfile[], DataFrame; header=true, delim=',', types=[String, Float64])
 rowsofconstants = findall(occursin.(r"C\d{2}", df[!, "Comment"]))
 C_0[rowsofconstants] .= df[!, "For Calibration with vumat"][rowsofconstants]
-bulk_mod = df[!, "For Calibration with vumat"][findfirst(occursin("Bulk Mod"), df[!, "Comment"])]
-shear_mod = df[!, "For Calibration with vumat"][findfirst(occursin("Shear Mod"), df[!, "Comment"])]
-
-# assign params:
-params = Observable(Dict(
+bulk_mod    = df[!, "For Calibration with vumat"][findfirst(occursin("Bulk Mod"), df[!, "Comment"])]
+shear_mod   = df[!, "For Calibration with vumat"][findfirst(occursin("Shear Mod"), df[!, "Comment"])]
+params      = Observable(Dict( # collect as dictionary
     "C01"       => C_0[ 1],
     "C02"       => C_0[ 2],
     "C03"       => C_0[ 3],
@@ -165,31 +94,64 @@ params = Observable(Dict(
 ))
 # ------------------------------------------------
 # store stress-strain data and corresponding test conditions (temp and strain rate)
-nsets = length(files)
-bcj = BCJ.BCJ_metal_calibrate_init(files, incnum, istate, params, Scale_MPa)
+files       = Observable(files)     # trying to switch over to observable
+joinfiles(fs) = join([fs...], "; ")
+input_files = lift(joinfiles, files)
+nsets       = length(files[])
+bcj         = BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate, params[], MPa)
 # lines[1] = data
 # lines[2] = model (to be updated)
 # lines[3] = alpha model (to be updated)
 # lines[4] = kappa model (to be updated)
-dataseries = BCJ.dataseries_init(nsets, bcj.test_data, Plot_ISVs)
+dataseries  = BCJ.dataseries_init(nsets, bcj.test_data, Plot_ISVs)
 
 
 
+################################################################
+#                   B E G I N   F I G U R E                    #
+################################################################
 
-# -----------------------------------------------------
 
-# create the axes and the lines that we will manipulate
 
-# fig, ax = plt.subplots()
-f = Figure(layout=GridLayout(1, 2), figure_padding=(plot_left, plot_right, plot_bot, plot_top))
-# w = @lift widths($(f.scene.px_area))[1]
-grid_sliders    = GridLayout(f[ 1,  1])
-grid_plot       = GridLayout(f[ 1,  2])
-# colsize!(f.layout, 1, Relative(0.45))
-# colsize!(f.layout, 2, Relative(0.45))
+# top-level figure
+# figure_padding=(plot_left, plot_right, plot_bot, plot_top)
+f = Figure(figure_padding=(0.5, 0.95, 0.2, 0.95), layout=GridLayout(1, 2))
+# f = Figure(figure_padding=(0.5, 0.95, 0.2, 0.95), layout=GridLayout(3, 1))
+w = @lift widths($(f.scene.viewport))[1]
+# w = @lift widths($(f.scene))[1]
 
-# ------------------------------------------------
-# add textboxes for clarity
+## sub-figure for input parameters of calibration study
+a = GridLayout(f[ 1,  1], 1, 2)
+aa = GridLayout(a[ 1,  1], 3, 3)
+### propsfile
+propsfile_label       = Label(aa[ 1,  1], "Path to parameters dictionary:")
+propsfile_textbox   = Textbox(aa[ 1,  2], placeholder="path/to/dict",
+    width=w[], stored_string=propsfile, displayed_string=propsfile)
+propsfile_button     = Button(aa[ 1,  3], label="Browse")
+### experimental datasets
+expdatasets_label     = Label(aa[ 2,  1], "Paths to experimental data:")
+expdatasets_textbox = Textbox(aa[ 2,  2], placeholder="path/to/experimental datasets",
+    width=w[], stored_string=input_files, displayed_string=input_files)
+expdatasets_button   = Button(aa[ 2,  3], label="Browse")
+### number of strain increments
+incnum_label          = Label(aa[ 3,  1], "Number of strain increments:")
+incnum_textbox      = Textbox(aa[ 3,  2], placeholder="non-zero integer",
+    width=w[], stored_string="200", displayed_string="200", validator=Int64)
+### update calibration study
+buttons_updateinputs = Button(a[ 1,  2], label="Update inputs")
+
+## sub-figure for sliders and plot
+b = GridLayout(f[ 2,  1], 1, 2)
+grid_sliders    = GridLayout(b[ 1,  1], 10,  1)
+grid_plot       = GridLayout(b[ 1,  2])
+Box(b[1, 1], color=(:red, 0.2), strokewidth=0)
+Box(b[1, 2], color=(:red, 0.2), strokewidth=0)
+# # colsize!(f.layout, 1, Relative(0.45))
+# # colsize!(f.layout, 2, Relative(0.45))
+# colsize!(f.layout, 2, Aspect(1, 1.0))
+
+### sliders
+# label each slider with equation
 textbox_V   = Label(grid_sliders[ 1,  1], L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)")
 textbox_Y   = Label(grid_sliders[ 2,  1], L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)")
 textbox_f   = Label(grid_sliders[ 3,  1], L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)")
@@ -200,9 +162,7 @@ textbox_Rd  = Label(grid_sliders[ 7,  1], L"R_{d} = C_{13} \mathrm{exp}(-C_{14} 
 textbox_H   = Label(grid_sliders[ 8,  1], L"H = C_{15} - C_{16}\theta")
 textbox_Rs  = Label(grid_sliders[ 9,  1], L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)")
 textbox_Yadj= Label(grid_sliders[10,  1], L"Y_{adj}")
-
-# ------------------------------------------------
-# make a slider for each variable
+# make a slider for each constant
 # V
 sg_C01      = SliderGrid(grid_sliders[ 1,  2][ 1,  1], (label=L"C_{ 1}", range=0.:10.:5C_0[ 1], format="{:.3e}", startvalue=C_0[ 1])) # , width=0.4w[]))
 sg_C02      = SliderGrid(grid_sliders[ 1,  2][ 2,  1], (label=L"C_{ 2}", range=0.:10.:5C_0[ 2], format="{:.3e}", startvalue=C_0[ 2])) # , width=0.4w[]))
@@ -233,8 +193,7 @@ sg_C18      = SliderGrid(grid_sliders[ 9,  2][ 2,  1], (label=L"C_{18}", range=0
 # Yadj
 sg_C19      = SliderGrid(grid_sliders[10,  2][ 1,  1], (label=L"C_{19}", range=0.:10.:5C_0[19], format="{:.3e}", startvalue=C_0[19])) # , width=0.4w[]))
 sg_C20      = SliderGrid(grid_sliders[10,  2][ 2,  1], (label=L"C_{20}", range=0.:10.:5C_0[20], format="{:.3e}", startvalue=C_0[20])) # , width=0.4w[]))
-
-sg_constants = [
+sg_sliders  = [ # collect sliders
     sg_C01, sg_C02, # V
     sg_C03, sg_C04, # Y
     sg_C05, sg_C06, # f
@@ -246,98 +205,109 @@ sg_constants = [
     sg_C17, sg_C18, # Rs
     sg_C19, sg_C20  # Yadj
 ]
-# sg_observables = [sgcs.value for sgcs in [only(sgc.sliders) for sgc in sg_constants]]
 
-# The function to be called anytime a slider's value changes
-for (i, sgc) in enumerate(sg_constants)
-    on(only(sgc.sliders).value) do val
-        # redefine params with new slider values
-        key = BCJ.constant_string(i)
-        params[][key] = to_value(val)
-        notify(params); BCJ.update!(dataseries, bcj, incnum, istate, Plot_ISVs)
-    end
-end
-
-
-
-
-
-
-
-
-ax = Axis(grid_plot[ 1: 9,  1],
+### plot
+ax = Axis(grid_plot[ 1:  9,  1:  9],
     xlabel="True Strain (mm/mm)",
-    ylabel="True Stress (Pa)") # ,
-    # width=0.5w[])
-xlims!(ax, (0., nothing))
-ylims!(ax, (0., max_stress))
-
-for i in range(1, nsets)
+    ylabel="True Stress (Pa)",
+    aspect=1.0, width=w[])
+xlims!(ax, (0., nothing)); ylims!(ax, (min_stress, max_stress))
+# BCJ.plot_sets!(ax, dataseries, bcj, Plot_ISVs)
+for i in range(1, bcj.nsets)
     # println(test_data[i][1][0])
     # println(test_data[i][1][5])
 
     scatter!(ax,    @lift(Point2f.($(dataseries[1][i]).x, $(dataseries[1][i]).y)),
-        colormap=:viridis, colorrange=(1, nsets), label="Data - " * bcj.test_cond["Name"][i])
+        colormap=:viridis, colorrange=(1, bcj.nsets), label="Data - " * bcj.test_cond["Name"][i])
     lines!(ax,      @lift(Point2f.($(dataseries[2][i]).x, $(dataseries[2][i]).y)),
-        colormap=:viridis, colorrange=(1, nsets), label="VM Model - " * bcj.test_cond["Name"][i])
+        colormap=:viridis, colorrange=(1, bcj.nsets), label="VM Model - " * bcj.test_cond["Name"][i])
     if Plot_ISVs
         scatter!(ax,    @lift(Point2f.($(dataseries[3][i]).x, $(dataseries[3][i]).y)),
-            colormap=:viridis, colorrange=(1, nsets), label="\$\\alpha\$ - " * bcj.test_cond["Name"][i])
+            colormap=:viridis, colorrange=(1, bcj.nsets), label="\$\\alpha\$ - " * bcj.test_cond["Name"][i])
         lines!(ax,      @lift(Point2f.($(dataseries[4][i]).x, $(dataseries[4][i]).y)),
-            colormap=:viridis, colorrange=(1, nsets), label="\$\\kappa\$ - " * bcj.test_cond["Name"][i])
+            colormap=:viridis, colorrange=(1, bcj.nsets), label="\$\\kappa\$ - " * bcj.test_cond["Name"][i])
         # scatter(ax,     @lift(Point2f.($(dataseries[5][i]).x, $(dataseries[5][i]).y)),
         #     colormap=:viridis , label="\$total\$ - " * bcj.test_cond["Name"][i]))
         # lines(ax,       @lift(Point2f.($(dataseries[6][i]).x, $(dataseries[6][i]).y)),
         #     colormap=:viridis , label="\$S_{11}\$ - " * bcj.test_cond["Name"][i]))
     end
 end
-axislegend(ax, position=:lt)
-BCJ.update!(dataseries, bcj, incnum, istate, Plot_ISVs)
+leg = axislegend(ax, position=:lt)
+BCJ.update!(ax, leg, dataseries, bcj, incnum[], istate, Plot_ISVs)
 
-buttons_grid = GridLayout(grid_plot[10,  1], 1, 3)
+### buttons below plot
+buttons_grid = GridLayout(grid_plot[ 10,  :], 1, 3)
 buttons_labels = ["Reset", "Save Props", "Export Curves"]
 buttons = buttons_grid[1, :] = [Button(f, label=bl) for bl in buttons_labels]
-buttons_resetbutton     = buttons[1]
-buttons_savebutton      = buttons[2]
-buttons_exportbutton    = buttons[3]
+buttons_resetparams   = buttons[1]
+buttons_savecurves    = buttons[2]
+buttons_exportcurves  = buttons[3]
 
 
-# ------------------------------------------------
+
+################################################################
+#                     E N D   F I G U R E                      #
+################################################################
 
 
-# ------------------------------------------------
-# Add buttons
-# ------------------------------------------------
 
-# for i in range(1, length(buttons))
-#     on(buttons[i].clicks) do n
-#         counts[][i] += 1
-#         notify(counts)
-#     end
+# dynamic backend functions
+## browse for parameters dictionary
+on(propsfile_button.clicks) do click
+    propsfile[] = pick_file(; filterlist="csv");                notify(propsfile)
+end
+## experimental data sets (browse)
+on(expdatasets_button.clicks) do click
+    files[] = pick_multi_file(; filterlist="csv");              notify(files)
+end
+# ## experimental data sets (drag-and-drop)
+# on(events(f.scene).dropped_files) do fs
+#     files[] = fs;                                               notify(files)
 # end
-on(buttons_resetbutton.clicks) do click
-    for (i, c, sgc) in zip(range(1, nsliders), C_0, sg_constants)
-        key = BCJ.constant_string(i)
-        params[][key]       = to_value(c); notify(params)
-        set_close_to!(sgc.sliders[1], c)
-        sgc.sliders[1].value[] = to_value(c)
-        notify(sgc.sliders[1].value)
+## update input parameters to calibrate
+on(buttons_updateinputs.clicks) do click
+    println(propsfile_textbox.displayed_string[])
+    incnum[] = parse(Int64, incnum_textbox.displayed_string[]); notify(incnum)
+    println(incnum[])
+    # bcj[] = BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate, params[], MPa); notify(bcj)
+    # dataseries = BCJ.dataseries_init(nsets[], bcj[].test_data, Plot_ISVs); notify(dataseries)
+    # BCJ.update!(dataseries[], bcj[], incnum[], istate, Plot_ISVs) # ; notify(dataseries)
+end
+## update curves from sliders
+for (i, sgs) in enumerate(sg_sliders)
+    on(only(sgs.sliders).value) do val
+        # redefine params with new slider values
+        params[][BCJ.constant_string(i)] = to_value(val);       notify(params)
+        BCJ.update!(ax, leg, to_value(dataseries), to_value(bcj), to_value(incnum), istate, Plot_ISVs)
     end
 end
-
-on(buttons_savebutton.clicks) do click
+## reset sliders/parameters
+on(buttons_resetparams.clicks) do click
+    # for (i, c, sgc) in zip(range(1, nsliders), C_0, sg_sliders)
+    #     params[][BCJ.constant_string(i)] = to_value(c);         notify(params)
+    #     set_close_to!(sgc.sliders[1], c)
+    #     sgc.sliders[1].value[] = to_value(c);                   notify(sgc.sliders[1].value)
+    # end
+    asyncmap((i, c, sgc)->begin # attempt multi-threading
+            params[][BCJ.constant_string(i)] = to_value(c);     notify(params)
+            set_close_to!(sgc.sliders[1], c)
+            sgc.sliders[1].value[] = to_value(c);               notify(sgc.sliders[1].value)
+        end, range(1, nsliders), C_0, sg_sliders)
+end
+## save parameters
+on(buttons_savecurves.clicks) do click
     props_dir, props_name = dirname(propsfile), basename(propsfile)
     # "Save new props file"
     propsfile_new = save_file(; filterlist="csv")
     df = DataFrame(
         "Constants" => [BCJ.constant_string.(range(1, nsliders))..., "Bulk Mod", "Shear Mod"],
-        "Values"    => [[only(sgc.sliders).value[] for sgc in sg_constants]..., bulk_mod, shear_mod]
+        "Values"    => [[only(sgc.sliders).value[] for sgc in sg_sliders]..., bulk_mod, shear_mod]
     )
     CSV.write(propsfile_new, df)
     println("New props file written to: \"", propsfile_new, "\"")
 end
-
-on(buttons_exportbutton.clicks) do click
+## export curves
+on(buttons_exportcurves.clicks) do click
     props_dir, props_name = dirname(propsfile), basename(propsfile)
     curvefile_new = save_file(; filterlist="csv")
     header, df = [], DataFrame()
@@ -353,4 +323,5 @@ on(buttons_exportbutton.clicks) do click
 end
 
 
-display(f)
+
+display(f) # that's all folks!
