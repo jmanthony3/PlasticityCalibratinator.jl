@@ -172,11 +172,7 @@ function BCJ_metal_calibrate_update!(BCJ::BCJ_metal_calibrate, incnum, istate, i
 end
 
 function plot_sets!(ax, dataseries, BCJ::BCJ_metal_calibrate, Plot_ISVs)
-    # empty!(ax); !isnothing(leg) ? delete!(leg) : nothing
     for i in range(1, BCJ.nsets)
-        # println(test_data[i][1][0])
-        # println(test_data[i][1][5])
-
         scatter!(ax,    @lift(Point2f.($(dataseries[1][i]).x, $(dataseries[1][i]).y)),
             colormap=:viridis, colorrange=(1, BCJ.nsets), label="Data - " * BCJ.test_cond["Name"][i])
         lines!(ax,      @lift(Point2f.($(dataseries[2][i]).x, $(dataseries[2][i]).y)),
@@ -192,7 +188,6 @@ function plot_sets!(ax, dataseries, BCJ::BCJ_metal_calibrate, Plot_ISVs)
             #     colormap=:viridis , label="\$S_{11}\$ - " * bcj.test_cond["Name"][i]))
         end
     end
-    # !isnothing(leg) ? (leg = axislegend(ax, position=:lt)) : nothing
 end
 
 function update!(ax, leg, dataseries, BCJ::BCJ_metal_calibrate, incnum, istate, Plot_ISVs)
@@ -210,6 +205,5 @@ function update!(ax, leg, dataseries, BCJ::BCJ_metal_calibrate, incnum, istate, 
             notify(ds[i])
         end
     end
-    # plot_sets!(ax, leg, dataseries, BCJ, Plot_ISVs)
     return nothing
 end

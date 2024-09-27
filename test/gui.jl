@@ -97,13 +97,12 @@ params      = Observable(Dict( # collect as dictionary
 files       = Observable(files)     # trying to switch over to observable
 joinfiles(fs) = join([fs...], "; ")
 input_files = lift(joinfiles, files)
-nsets       = length(files[])
-bcj         = BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate, params[], MPa)
+bcj         = Observable(BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate, params[], MPa))
 # lines[1] = data
 # lines[2] = model (to be updated)
 # lines[3] = alpha model (to be updated)
 # lines[4] = kappa model (to be updated)
-dataseries  = BCJ.dataseries_init(nsets, bcj.test_data, Plot_ISVs)
+dataseries  = Observable(BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs))
 
 
 
@@ -212,28 +211,9 @@ ax = Axis(grid_plot[ 1:  9,  1:  9],
     ylabel="True Stress (Pa)",
     aspect=1.0, width=w[])
 xlims!(ax, (0., nothing)); ylims!(ax, (min_stress, max_stress))
-# BCJ.plot_sets!(ax, dataseries, bcj, Plot_ISVs)
-for i in range(1, bcj.nsets)
-    # println(test_data[i][1][0])
-    # println(test_data[i][1][5])
-
-    scatter!(ax,    @lift(Point2f.($(dataseries[1][i]).x, $(dataseries[1][i]).y)),
-        colormap=:viridis, colorrange=(1, bcj.nsets), label="Data - " * bcj.test_cond["Name"][i])
-    lines!(ax,      @lift(Point2f.($(dataseries[2][i]).x, $(dataseries[2][i]).y)),
-        colormap=:viridis, colorrange=(1, bcj.nsets), label="VM Model - " * bcj.test_cond["Name"][i])
-    if Plot_ISVs
-        scatter!(ax,    @lift(Point2f.($(dataseries[3][i]).x, $(dataseries[3][i]).y)),
-            colormap=:viridis, colorrange=(1, bcj.nsets), label="\$\\alpha\$ - " * bcj.test_cond["Name"][i])
-        lines!(ax,      @lift(Point2f.($(dataseries[4][i]).x, $(dataseries[4][i]).y)),
-            colormap=:viridis, colorrange=(1, bcj.nsets), label="\$\\kappa\$ - " * bcj.test_cond["Name"][i])
-        # scatter(ax,     @lift(Point2f.($(dataseries[5][i]).x, $(dataseries[5][i]).y)),
-        #     colormap=:viridis , label="\$total\$ - " * bcj.test_cond["Name"][i]))
-        # lines(ax,       @lift(Point2f.($(dataseries[6][i]).x, $(dataseries[6][i]).y)),
-        #     colormap=:viridis , label="\$S_{11}\$ - " * bcj.test_cond["Name"][i]))
-    end
-end
-leg = axislegend(ax, position=:lt)
-BCJ.update!(ax, leg, dataseries, bcj, incnum[], istate, Plot_ISVs)
+BCJ.plot_sets!(ax, dataseries[], bcj[], Plot_ISVs)
+leg = Observable(axislegend(ax, position=:lt))
+BCJ.update!(dataseries[], bcj[], incnum[], istate, Plot_ISVs)
 
 ### buttons below plot
 buttons_grid = GridLayout(grid_plot[ 10,  :], 1, 3)
@@ -290,19 +270,19 @@ on(events(f.scene).dropped_files) do filedump
 end
 ## update input parameters to calibrate
 on(buttons_updateinputs.clicks) do click
-    println(propsfile_textbox.displayed_string[])
+    empty!(ax); !isnothing(leg[]) ? delete!(leg[]) : nothing; notify(leg)
     incnum[] = parse(Int64, incnum_textbox.displayed_string[]); notify(incnum)
-    println(incnum[])
-    # bcj[] = BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate, params[], MPa); notify(bcj)
-    # dataseries = BCJ.dataseries_init(nsets[], bcj[].test_data, Plot_ISVs); notify(dataseries)
-    # BCJ.update!(dataseries[], bcj[], incnum[], istate, Plot_ISVs) # ; notify(dataseries)
+    bcj[] = BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate, params[], MPa); notify(bcj)
+    dataseries[] = BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs); notify(dataseries)
+    BCJ.plot_sets!(ax, dataseries[], bcj[], Plot_ISVs)
+    !isnothing(leg) ? (leg[] = axislegend(ax, position=:lt)) : nothing; notify(leg)
 end
 ## update curves from sliders
 for (i, sgs) in enumerate(sg_sliders)
     on(only(sgs.sliders).value) do val
         # redefine params with new slider values
         params[][BCJ.constant_string(i)] = to_value(val);       notify(params)
-        BCJ.update!(ax, leg, to_value(dataseries), to_value(bcj), to_value(incnum), istate, Plot_ISVs)
+        BCJ.update!(dataseries[], bcj[], incnum[], istate, Plot_ISVs)
     end
 end
 ## reset sliders/parameters
@@ -335,7 +315,7 @@ on(buttons_exportcurves.clicks) do click
     props_dir, props_name = dirname(propsfile), basename(propsfile)
     curvefile_new = save_file(; filterlist="csv")
     header, df = [], DataFrame()
-    for (i, test_name, test_strain, test_stress) in zip(range(1, nsets), bcj.test_cond["Name"], bcj.test_data["Model_E"], bcj.test_data["Model_VM"])
+    for (i, test_name, test_strain, test_stress) in zip(range(1, bcj[].nsets), bcj[].test_cond["Name"], bcj[].test_data["Model_E"], bcj[].test_data["Model_VM"])
         push!(header, "strain-" * test_name)
         push!(header, "VMstress" * test_name)
         DataFrames.hcat!(df, DataFrame(
