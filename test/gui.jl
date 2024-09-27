@@ -276,7 +276,6 @@ end
 ### experimental data sets (drag-and-drop)
 on(events(f.scene).dropped_files) do filedump
     if !isempty(filedump)
-        println(filedump)
         u, v = length(files[]), length(filedump)
         if u > v
             for (i, file) in enumerate(filedump)
