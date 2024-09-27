@@ -4,6 +4,7 @@ using DataFrames
 using Distributed
 using GLMakie
 using LaTeXStrings
+using LsqFit
 using NativeFileDialog
 
 import BammannChiesaJohnsons as BCJ
@@ -141,7 +142,7 @@ buttons_updateinputs = Button(a[ 1,  2], label="Update inputs")
 
 ## sub-figure for sliders and plot
 b = GridLayout(f[ 2,  1], 1, 2)
-grid_sliders    = GridLayout(b[ 1,  1], 10,  1)
+grid_sliders    = GridLayout(b[ 1,  1], 10,  3)
 grid_plot       = GridLayout(b[ 1,  2])
 Box(b[1, 1], color=(:red, 0.2), strokewidth=0)
 Box(b[1, 2], color=(:red, 0.2), strokewidth=0)
@@ -150,48 +151,72 @@ Box(b[1, 2], color=(:red, 0.2), strokewidth=0)
 # colsize!(f.layout, 2, Aspect(1, 1.0))
 
 ### sliders
+# add toggles for which to calibrate
+# toggles = [Toggle(f, active=active) for active in fill(false, 10)]
+toggle_V    = Toggle(grid_sliders[ 1,  1], active=false)
+toggle_Y    = Toggle(grid_sliders[ 2,  1], active=false)
+toggle_f    = Toggle(grid_sliders[ 3,  1], active=false)
+toggle_rd   = Toggle(grid_sliders[ 4,  1], active=false)
+toggle_h    = Toggle(grid_sliders[ 5,  1], active=false)
+toggle_rs   = Toggle(grid_sliders[ 6,  1], active=false)
+toggle_Rd   = Toggle(grid_sliders[ 7,  1], active=false)
+toggle_H    = Toggle(grid_sliders[ 8,  1], active=false)
+toggle_Rs   = Toggle(grid_sliders[ 9,  1], active=false)
+toggle_Yadj = Toggle(grid_sliders[10,  1], active=false)
+toggles     = [ # collect toggles
+    toggle_V,       # V
+    toggle_Y,       # Y
+    toggle_f,       # f
+    toggle_rd,      # rd
+    toggle_h,       # h
+    toggle_rs,      # rs
+    toggle_Rd,      # Rd
+    toggle_H,       # H
+    toggle_Rs,      # Rs
+    toggle_Yadj     # Yadj
+]
 # label each slider with equation
-textbox_V   = Label(grid_sliders[ 1,  1], L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)")
-textbox_Y   = Label(grid_sliders[ 2,  1], L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)")
-textbox_f   = Label(grid_sliders[ 3,  1], L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)")
-textbox_rd  = Label(grid_sliders[ 4,  1], L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)")
-textbox_h   = Label(grid_sliders[ 5,  1], L"h = C_{ 9} - C_{10}\theta")
-textbox_rs  = Label(grid_sliders[ 6,  1], L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)")
-textbox_Rd  = Label(grid_sliders[ 7,  1], L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)")
-textbox_H   = Label(grid_sliders[ 8,  1], L"H = C_{15} - C_{16}\theta")
-textbox_Rs  = Label(grid_sliders[ 9,  1], L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)")
-textbox_Yadj= Label(grid_sliders[10,  1], L"Y_{adj}")
+textbox_V   = Label(grid_sliders[ 1,  2], L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)")
+textbox_Y   = Label(grid_sliders[ 2,  2], L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)")
+textbox_f   = Label(grid_sliders[ 3,  2], L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)")
+textbox_rd  = Label(grid_sliders[ 4,  2], L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)")
+textbox_h   = Label(grid_sliders[ 5,  2], L"h = C_{ 9} - C_{10}\theta")
+textbox_rs  = Label(grid_sliders[ 6,  2], L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)")
+textbox_Rd  = Label(grid_sliders[ 7,  2], L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)")
+textbox_H   = Label(grid_sliders[ 8,  2], L"H = C_{15} - C_{16}\theta")
+textbox_Rs  = Label(grid_sliders[ 9,  2], L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)")
+textbox_Yadj= Label(grid_sliders[10,  2], L"Y_{adj}")
 # make a slider for each constant
 # V
-sg_C01      = SliderGrid(grid_sliders[ 1,  2][ 1,  1], (label=L"C_{ 1}", range=0.:10.:5C_0[ 1], format="{:.3e}", startvalue=C_0[ 1])) # , width=0.4w[]))
-sg_C02      = SliderGrid(grid_sliders[ 1,  2][ 2,  1], (label=L"C_{ 2}", range=0.:10.:5C_0[ 2], format="{:.3e}", startvalue=C_0[ 2])) # , width=0.4w[]))
+sg_C01      = SliderGrid(grid_sliders[ 1,  3][ 1,  1], (label=L"C_{ 1}", range=0.:10.:5C_0[ 1], format="{:.3e}", startvalue=C_0[ 1])) # , width=0.4w[]))
+sg_C02      = SliderGrid(grid_sliders[ 1,  3][ 2,  1], (label=L"C_{ 2}", range=0.:10.:5C_0[ 2], format="{:.3e}", startvalue=C_0[ 2])) # , width=0.4w[]))
 # Y
-sg_C03      = SliderGrid(grid_sliders[ 2,  2][ 1,  1], (label=L"C_{ 3}", range=0.:10.:5C_0[ 3], format="{:.3e}", startvalue=C_0[ 3])) # , width=0.4w[]))
-sg_C04      = SliderGrid(grid_sliders[ 2,  2][ 2,  1], (label=L"C_{ 4}", range=0.:10.:5C_0[ 4], format="{:.3e}", startvalue=C_0[ 4])) # , width=0.4w[]))
+sg_C03      = SliderGrid(grid_sliders[ 2,  3][ 1,  1], (label=L"C_{ 3}", range=0.:10.:5C_0[ 3], format="{:.3e}", startvalue=C_0[ 3])) # , width=0.4w[]))
+sg_C04      = SliderGrid(grid_sliders[ 2,  3][ 2,  1], (label=L"C_{ 4}", range=0.:10.:5C_0[ 4], format="{:.3e}", startvalue=C_0[ 4])) # , width=0.4w[]))
 # f
-sg_C05      = SliderGrid(grid_sliders[ 3,  2][ 1,  1], (label=L"C_{ 5}", range=0.:10.:5C_0[ 5], format="{:.3e}", startvalue=C_0[ 5])) # , width=0.4w[]))
-sg_C06      = SliderGrid(grid_sliders[ 3,  2][ 2,  1], (label=L"C_{ 6}", range=0.:10.:5C_0[ 6], format="{:.3e}", startvalue=C_0[ 6])) # , width=0.4w[]))
+sg_C05      = SliderGrid(grid_sliders[ 3,  3][ 1,  1], (label=L"C_{ 5}", range=0.:10.:5C_0[ 5], format="{:.3e}", startvalue=C_0[ 5])) # , width=0.4w[]))
+sg_C06      = SliderGrid(grid_sliders[ 3,  3][ 2,  1], (label=L"C_{ 6}", range=0.:10.:5C_0[ 6], format="{:.3e}", startvalue=C_0[ 6])) # , width=0.4w[]))
 # rd
-sg_C07      = SliderGrid(grid_sliders[ 4,  2][ 1,  1], (label=L"C_{ 7}", range=0.:10.:5C_0[ 7], format="{:.3e}", startvalue=C_0[ 7])) # , width=0.4w[]))
-sg_C08      = SliderGrid(grid_sliders[ 4,  2][ 2,  1], (label=L"C_{ 8}", range=0.:10.:5C_0[ 8], format="{:.3e}", startvalue=C_0[ 8])) # , width=0.4w[]))
+sg_C07      = SliderGrid(grid_sliders[ 4,  3][ 1,  1], (label=L"C_{ 7}", range=0.:10.:5C_0[ 7], format="{:.3e}", startvalue=C_0[ 7])) # , width=0.4w[]))
+sg_C08      = SliderGrid(grid_sliders[ 4,  3][ 2,  1], (label=L"C_{ 8}", range=0.:10.:5C_0[ 8], format="{:.3e}", startvalue=C_0[ 8])) # , width=0.4w[]))
 # h
-sg_C09      = SliderGrid(grid_sliders[ 5,  2][ 1,  1], (label=L"C_{ 9}", range=0.:10.:5C_0[ 9], format="{:.3e}", startvalue=C_0[ 9])) # , width=0.4w[]))
-sg_C10      = SliderGrid(grid_sliders[ 5,  2][ 2,  1], (label=L"C_{10}", range=0.:10.:5C_0[10], format="{:.3e}", startvalue=C_0[10])) # , width=0.4w[]))
+sg_C09      = SliderGrid(grid_sliders[ 5,  3][ 1,  1], (label=L"C_{ 9}", range=0.:10.:5C_0[ 9], format="{:.3e}", startvalue=C_0[ 9])) # , width=0.4w[]))
+sg_C10      = SliderGrid(grid_sliders[ 5,  3][ 2,  1], (label=L"C_{10}", range=0.:10.:5C_0[10], format="{:.3e}", startvalue=C_0[10])) # , width=0.4w[]))
 # rs
-sg_C11      = SliderGrid(grid_sliders[ 6,  2][ 1,  1], (label=L"C_{11}", range=0.:10.:5C_0[11], format="{:.3e}", startvalue=C_0[11])) # , width=0.4w[]))
-sg_C12      = SliderGrid(grid_sliders[ 6,  2][ 2,  1], (label=L"C_{12}", range=0.:10.:5C_0[12], format="{:.3e}", startvalue=C_0[12])) # , width=0.4w[]))
+sg_C11      = SliderGrid(grid_sliders[ 6,  3][ 1,  1], (label=L"C_{11}", range=0.:10.:5C_0[11], format="{:.3e}", startvalue=C_0[11])) # , width=0.4w[]))
+sg_C12      = SliderGrid(grid_sliders[ 6,  3][ 2,  1], (label=L"C_{12}", range=0.:10.:5C_0[12], format="{:.3e}", startvalue=C_0[12])) # , width=0.4w[]))
 # Rd
-sg_C13      = SliderGrid(grid_sliders[ 7,  2][ 1,  1], (label=L"C_{13}", range=0.:10.:5C_0[13], format="{:.3e}", startvalue=C_0[13])) # , width=0.4w[]))
-sg_C14      = SliderGrid(grid_sliders[ 7,  2][ 2,  1], (label=L"C_{14}", range=0.:10.:5C_0[14], format="{:.3e}", startvalue=C_0[14])) # , width=0.4w[]))
+sg_C13      = SliderGrid(grid_sliders[ 7,  3][ 1,  1], (label=L"C_{13}", range=0.:10.:5C_0[13], format="{:.3e}", startvalue=C_0[13])) # , width=0.4w[]))
+sg_C14      = SliderGrid(grid_sliders[ 7,  3][ 2,  1], (label=L"C_{14}", range=0.:10.:5C_0[14], format="{:.3e}", startvalue=C_0[14])) # , width=0.4w[]))
 # H
-sg_C15      = SliderGrid(grid_sliders[ 8,  2][ 1,  1], (label=L"C_{15}", range=0.:10.:5C_0[15], format="{:.3e}", startvalue=C_0[15])) # , width=0.4w[]))
-sg_C16      = SliderGrid(grid_sliders[ 8,  2][ 2,  1], (label=L"C_{16}", range=0.:10.:5C_0[16], format="{:.3e}", startvalue=C_0[16])) # , width=0.4w[]))
+sg_C15      = SliderGrid(grid_sliders[ 8,  3][ 1,  1], (label=L"C_{15}", range=0.:10.:5C_0[15], format="{:.3e}", startvalue=C_0[15])) # , width=0.4w[]))
+sg_C16      = SliderGrid(grid_sliders[ 8,  3][ 2,  1], (label=L"C_{16}", range=0.:10.:5C_0[16], format="{:.3e}", startvalue=C_0[16])) # , width=0.4w[]))
 # Rs
-sg_C17      = SliderGrid(grid_sliders[ 9,  2][ 1,  1], (label=L"C_{17}", range=0.:10.:5C_0[17], format="{:.3e}", startvalue=C_0[17])) # , width=0.4w[]))
-sg_C18      = SliderGrid(grid_sliders[ 9,  2][ 2,  1], (label=L"C_{18}", range=0.:10.:5C_0[18], format="{:.3e}", startvalue=C_0[18])) # , width=0.4w[]))
+sg_C17      = SliderGrid(grid_sliders[ 9,  3][ 1,  1], (label=L"C_{17}", range=0.:10.:5C_0[17], format="{:.3e}", startvalue=C_0[17])) # , width=0.4w[]))
+sg_C18      = SliderGrid(grid_sliders[ 9,  3][ 2,  1], (label=L"C_{18}", range=0.:10.:5C_0[18], format="{:.3e}", startvalue=C_0[18])) # , width=0.4w[]))
 # Yadj
-sg_C19      = SliderGrid(grid_sliders[10,  2][ 1,  1], (label=L"C_{19}", range=0.:10.:5C_0[19], format="{:.3e}", startvalue=C_0[19])) # , width=0.4w[]))
-sg_C20      = SliderGrid(grid_sliders[10,  2][ 2,  1], (label=L"C_{20}", range=0.:10.:5C_0[20], format="{:.3e}", startvalue=C_0[20])) # , width=0.4w[]))
+sg_C19      = SliderGrid(grid_sliders[10,  3][ 1,  1], (label=L"C_{19}", range=0.:10.:5C_0[19], format="{:.3e}", startvalue=C_0[19])) # , width=0.4w[]))
+sg_C20      = SliderGrid(grid_sliders[10,  3][ 2,  1], (label=L"C_{20}", range=0.:10.:5C_0[20], format="{:.3e}", startvalue=C_0[20])) # , width=0.4w[]))
 sg_sliders  = [ # collect sliders
     sg_C01, sg_C02, # V
     sg_C03, sg_C04, # Y
@@ -216,12 +241,13 @@ leg = Observable(axislegend(ax, position=:lt))
 BCJ.update!(dataseries[], bcj[], incnum[], istate, Plot_ISVs)
 
 ### buttons below plot
-buttons_grid = GridLayout(grid_plot[ 10,  :], 1, 3)
-buttons_labels = ["Reset", "Save Props", "Export Curves"]
+buttons_grid = GridLayout(grid_plot[ 10,  :], 1, 4)
+buttons_labels = ["Calibrate", "Reset", "Save Props", "Export Curves"]
 buttons = buttons_grid[1, :] = [Button(f, label=bl) for bl in buttons_labels]
-buttons_resetparams   = buttons[1]
-buttons_savecurves    = buttons[2]
-buttons_exportcurves  = buttons[3]
+buttons_calibrate       = buttons[1]
+buttons_resetparams     = buttons[2]
+buttons_savecurves      = buttons[3]
+buttons_exportcurves    = buttons[4]
 
 
 
@@ -232,21 +258,22 @@ buttons_exportcurves  = buttons[3]
 
 
 # dynamic backend functions
-## browse for parameters dictionary
+## inputs
+### browse for parameters dictionary
 on(propsfile_button.clicks) do click
     file = pick_file(; filterlist="csv")
     if file != ""
         propsfile[] = file;                                     notify(propsfile)
     end
 end
-## experimental data sets (browse)
+### experimental data sets (browse)
 on(expdatasets_button.clicks) do click
     filelist = pick_multi_file(; filterlist="csv")
     if !isempty(filelist)
         files[] = filelist;                                     notify(files)
     end
 end
-## experimental data sets (drag-and-drop)
+### experimental data sets (drag-and-drop)
 on(events(f.scene).dropped_files) do filedump
     if !isempty(filedump)
         println(filedump)
@@ -268,7 +295,7 @@ on(events(f.scene).dropped_files) do filedump
         end;                                                    notify(files)
     end
 end
-## update input parameters to calibrate
+### update input parameters to calibrate
 on(buttons_updateinputs.clicks) do click
     empty!(ax); !isnothing(leg[]) ? delete!(leg[]) : nothing; notify(leg)
     incnum[] = parse(Int64, incnum_textbox.displayed_string[]); notify(incnum)
@@ -277,7 +304,9 @@ on(buttons_updateinputs.clicks) do click
     BCJ.plot_sets!(ax, dataseries[], bcj[], Plot_ISVs)
     !isnothing(leg) ? (leg[] = axislegend(ax, position=:lt)) : nothing; notify(leg)
 end
-## update curves from sliders
+
+## interactivity
+### update curves from sliders
 for (i, sgs) in enumerate(sg_sliders)
     on(only(sgs.sliders).value) do val
         # redefine params with new slider values
@@ -285,7 +314,174 @@ for (i, sgs) in enumerate(sg_sliders)
         BCJ.update!(dataseries[], bcj[], incnum[], istate, Plot_ISVs)
     end
 end
-## reset sliders/parameters
+
+## buttons
+### calibrate parameters
+on(buttons_calibrate.clicks) do click
+    calibratingtoggles_indices = findall(t->t.active[], toggles)
+    if !isempty(calibratingtoggles_indices)
+        constantstocalibrate_indices = []
+        constantstocalibrate = Float64[]
+        for i in calibratingtoggles_indices
+            if      i ==  1
+                append!(constantstocalibrate_indices,   [ 1,  2])
+                append!(constantstocalibrate,           [params[]["C01"], params[]["C02"]])
+            elseif  i ==  2
+                append!(constantstocalibrate_indices,   [ 3,  4])
+                append!(constantstocalibrate,           [params[]["C03"], params[]["C04"]])
+            elseif  i ==  3
+                append!(constantstocalibrate_indices,   [ 5,  6])
+                append!(constantstocalibrate,           [params[]["C05"], params[]["C06"]])
+            elseif  i ==  4
+                append!(constantstocalibrate_indices,   [ 7,  8])
+                append!(constantstocalibrate,           [params[]["C07"], params[]["C08"]])
+            elseif  i ==  5
+                append!(constantstocalibrate_indices,   [ 9, 10])
+                append!(constantstocalibrate,           [params[]["C09"], params[]["C10"]])
+            elseif  i ==  6
+                append!(constantstocalibrate_indices,   [11, 12])
+                append!(constantstocalibrate,           [params[]["C11"], params[]["C12"]])
+            elseif  i ==  7
+                append!(constantstocalibrate_indices,   [13, 14])
+                append!(constantstocalibrate,           [params[]["C13"], params[]["C14"]])
+            elseif  i ==  8
+                append!(constantstocalibrate_indices,   [15, 16])
+                append!(constantstocalibrate,           [params[]["C15"], params[]["C16"]])
+            elseif  i ==  9
+                append!(constantstocalibrate_indices,   [17, 18])
+                append!(constantstocalibrate,           [params[]["C17"], params[]["C18"]])
+            elseif  i == 10
+                append!(constantstocalibrate_indices,   [19, 20])
+                append!(constantstocalibrate,           [params[]["C19"], params[]["C20"]])
+            end
+        end
+        p = constantstocalibrate # creaty local copy of params[] and modify
+        function multimodel(x, p)
+            # BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
+            #     incnum[], istate, p[1], p[2]).S
+            kS          = 1     # default tension component
+            if istate == 2
+                kS      = 4     # select torsion component
+            end
+            r = params[]
+            for (i, j) in enumerate(constantstocalibrate_indices)
+                r[BCJ.constant_string(j)] = p[i]
+            end
+            ret_x = Float64[]
+            ret_y = Float64[] # zeros(Float64, length(x))
+            for i in range(1, bcj[].nsets)
+                emax        = maximum(bcj[].test_data["Data_E"][i])
+                # println('Setup: emax for set ',i,' = ', emax)
+                bcj_ref     = BCJ.BCJ_metal(
+                    bcj[].test_cond["Temp"][i], bcj[].test_cond["StrainRate"][i],
+                    emax, incnum[], istate, r)
+                bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref)
+                BCJ.solve!(bcj_current)
+                idx = []
+                for t in bcj[].test_data["Data_E"][i]
+                    j = findlast(t .<= bcj_current.ϵₜₒₜₐₗ[kS, :])
+                    push!(idx, if !isnothing(j)
+                        j
+                    else
+                        findfirst(t .>= bcj_current.ϵₜₒₜₐₗ[kS, :])
+                    end)
+                end
+                append!(ret_x, bcj_current.ϵₜₒₜₐₗ[kS, :][idx])
+                append!(ret_y, bcj_current.S[kS, :][idx])
+            end
+            return ret_y
+        end
+        x = Float64[] # zeros(Float64, (bcj[].nsets, length(bcj[].test_data["Data_E"][1])))
+        y = Float64[] # zeros(Float64, (bcj[].nsets, length(bcj[].test_data["Data_S"][1])))
+        for i in range(1, bcj[].nsets)
+            # println((size(x[i, :]), size(bcj[].test_data["Data_E"][i])))
+            # x[i, :] .= bcj[].test_data["Data_E"][i]
+            # y[i, :] .= bcj[].test_data["Data_S"][i]
+            append!(x, bcj[].test_data["Data_E"][i])
+            append!(y, bcj[].test_data["Data_S"][i])
+        end
+        q = curve_fit(multimodel, x, y, p).param
+        r = params[]
+        for (i, j) in enumerate(constantstocalibrate_indices)
+            r[BCJ.constant_string(j)] = q[i]
+        end
+        for i in calibratingtoggles_indices
+            toggles[i].active[] = false;                            notify(toggles[i].active)
+            if      i ==  1
+                params[]["C01"] = r["C01"];                         notify(params)
+                set_close_to!(sg_sliders[ 1].sliders[1], r["C01"])
+                sg_sliders[ 1].sliders[1].value[] = r["C01"];       notify(sg_sliders[ 1].sliders[1].value)
+                params[]["C02"] = r["C02"];                         notify(params)
+                set_close_to!(sg_sliders[ 2].sliders[1], r["C02"])
+                sg_sliders[ 2].sliders[1].value[] = r["C02"];       notify(sg_sliders[ 2].sliders[1].value)
+            elseif  i ==  2
+                params[]["C03"] = r["C03"];                         notify(params)
+                set_close_to!(sg_sliders[ 3].sliders[1], r["C03"])
+                sg_sliders[ 3].sliders[1].value[] = r["C03"];       notify(sg_sliders[ 3].sliders[1].value)
+                params[]["C04"] = r["C04"];                         notify(params)
+                set_close_to!(sg_sliders[ 4].sliders[1], r["C04"])
+                sg_sliders[ 4].sliders[1].value[] = r["C04"];       notify(sg_sliders[ 4].sliders[1].value)
+            elseif  i ==  3
+                params[]["C05"] = r["C05"];                         notify(params)
+                set_close_to!(sg_sliders[ 5].sliders[1], r["C05"])
+                sg_sliders[ 5].sliders[1].value[] = r["C05"];       notify(sg_sliders[ 5].sliders[1].value)
+                params[]["C06"] = r["C06"];                         notify(params)
+                set_close_to!(sg_sliders[ 6].sliders[1], r["C06"])
+                sg_sliders[ 6].sliders[1].value[] = r["C06"];       notify(sg_sliders[ 6].sliders[1].value)
+            elseif  i ==  4
+                params[]["C07"] = r["C07"];                         notify(params)
+                set_close_to!(sg_sliders[ 7].sliders[1], r["C07"])
+                sg_sliders[ 7].sliders[1].value[] = r["C07"];       notify(sg_sliders[ 7].sliders[1].value)
+                params[]["C08"] = r["C08"];                         notify(params)
+                set_close_to!(sg_sliders[ 8].sliders[1], r["C08"])
+                sg_sliders[ 8].sliders[1].value[] = r["C08"];       notify(sg_sliders[ 8].sliders[1].value)
+            elseif  i ==  5
+                params[]["C09"] = r["C09"];                         notify(params)
+                set_close_to!(sg_sliders[ 9].sliders[1], r["C09"])
+                sg_sliders[ 9].sliders[1].value[] = r["C09"];       notify(sg_sliders[ 9].sliders[1].value)
+                params[]["C10"] = r["C10"];                         notify(params)
+                set_close_to!(sg_sliders[10].sliders[1], r["C10"])
+                sg_sliders[10].sliders[1].value[] = r["C10"];       notify(sg_sliders[10].sliders[1].value)
+            elseif  i ==  6
+                params[]["C11"] = r["C11"];                         notify(params)
+                set_close_to!(sg_sliders[11].sliders[1], r["C11"])
+                sg_sliders[11].sliders[1].value[] = r["C11"];       notify(sg_sliders[11].sliders[1].value)
+                params[]["C12"] = r["C12"];                         notify(params)
+                set_close_to!(sg_sliders[12].sliders[1], r["C12"])
+                sg_sliders[12].sliders[1].value[] = r["C12"];       notify(sg_sliders[12].sliders[1].value)
+            elseif  i ==  7
+                params[]["C13"] = r["C13"];                         notify(params)
+                set_close_to!(sg_sliders[13].sliders[1], r["C13"])
+                sg_sliders[13].sliders[1].value[] = r["C13"];       notify(sg_sliders[13].sliders[1].value)
+                params[]["C14"] = r["C14"];                         notify(params)
+                set_close_to!(sg_sliders[14].sliders[1], r["C14"])
+                sg_sliders[14].sliders[1].value[] = r["C14"];       notify(sg_sliders[14].sliders[1].value)
+            elseif  i ==  8
+                params[]["C15"] = r["C15"];                         notify(params)
+                set_close_to!(sg_sliders[15].sliders[1], r["C15"])
+                sg_sliders[15].sliders[1].value[] = r["C15"];       notify(sg_sliders[15].sliders[1].value)
+                params[]["C16"] = r["C16"];                         notify(params)
+                set_close_to!(sg_sliders[16].sliders[1], r["C16"])
+                sg_sliders[16].sliders[1].value[] = r["C16"];       notify(sg_sliders[16].sliders[1].value)
+            elseif  i ==  9
+                params[]["C17"] = r["C17"];                         notify(params)
+                set_close_to!(sg_sliders[17].sliders[1], r["C17"])
+                sg_sliders[17].sliders[1].value[] = r["C17"];       notify(sg_sliders[17].sliders[1].value)
+                params[]["C18"] = r["C18"];                         notify(params)
+                set_close_to!(sg_sliders[18].sliders[1], r["C18"])
+                sg_sliders[18].sliders[1].value[] = r["C18"];       notify(sg_sliders[18].sliders[1].value)
+            elseif  i == 10
+                params[]["C19"] = r["C19"];                         notify(params)
+                set_close_to!(sg_sliders[19].sliders[1], r["C19"])
+                sg_sliders[19].sliders[1].value[] = r["C19"];       notify(sg_sliders[19].sliders[1].value)
+                params[]["C20"] = r["C20"];                         notify(params)
+                set_close_to!(sg_sliders[20].sliders[1], r["C20"])
+                sg_sliders[20].sliders[1].value[] = r["C20"];       notify(sg_sliders[20].sliders[1].value)
+            end
+        end
+    end
+end
+### reset sliders/parameters
 on(buttons_resetparams.clicks) do click
     # for (i, c, sgc) in zip(range(1, nsliders), C_0, sg_sliders)
     #     params[][BCJ.constant_string(i)] = to_value(c);         notify(params)
@@ -298,7 +494,7 @@ on(buttons_resetparams.clicks) do click
             sgc.sliders[1].value[] = to_value(c);               notify(sgc.sliders[1].value)
         end, range(1, nsliders), C_0, sg_sliders)
 end
-## save parameters
+### save parameters
 on(buttons_savecurves.clicks) do click
     props_dir, props_name = dirname(propsfile), basename(propsfile)
     # "Save new props file"
@@ -310,7 +506,7 @@ on(buttons_savecurves.clicks) do click
     CSV.write(propsfile_new, df)
     println("New props file written to: \"", propsfile_new, "\"")
 end
-## export curves
+### export curves
 on(buttons_exportcurves.clicks) do click
     props_dir, props_name = dirname(propsfile), basename(propsfile)
     curvefile_new = save_file(; filterlist="csv")
