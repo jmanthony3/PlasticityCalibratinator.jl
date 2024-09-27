@@ -254,16 +254,40 @@ buttons_exportcurves  = buttons[3]
 # dynamic backend functions
 ## browse for parameters dictionary
 on(propsfile_button.clicks) do click
-    propsfile[] = pick_file(; filterlist="csv");                notify(propsfile)
+    file = pick_file(; filterlist="csv")
+    if file != ""
+        propsfile[] = file;                                     notify(propsfile)
+    end
 end
 ## experimental data sets (browse)
 on(expdatasets_button.clicks) do click
-    files[] = pick_multi_file(; filterlist="csv");              notify(files)
+    filelist = pick_multi_file(; filterlist="csv")
+    if !isempty(filelist)
+        files[] = filelist;                                     notify(files)
+    end
 end
-# ## experimental data sets (drag-and-drop)
-# on(events(f.scene).dropped_files) do fs
-#     files[] = fs;                                               notify(files)
-# end
+## experimental data sets (drag-and-drop)
+on(events(f.scene).dropped_files) do filedump
+    if !isempty(filedump)
+        println(filedump)
+        u, v = length(files[]), length(filedump)
+        if u > v
+            for (i, file) in enumerate(filedump)
+                files[][i] = file;                              notify(files)
+            end
+            for i in range(u, v + 1; step=-1)
+                deleteat!(files[], i);                          notify(files)
+            end
+        elseif u < v
+            for (i, file) in enumerate(filedump[begin:u])
+                files[][i] = file;                              notify(files)
+            end
+            append!(files[], filedump[u + 1:end]);              notify(files)
+        else
+            files[] .= filedump
+        end;                                                    notify(files)
+    end
+end
 ## update input parameters to calibrate
 on(buttons_updateinputs.clicks) do click
     println(propsfile_textbox.displayed_string[])
