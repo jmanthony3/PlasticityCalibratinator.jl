@@ -96,7 +96,7 @@ params      = Observable(Dict( # collect as dictionary
 # ------------------------------------------------
 # store stress-strain data and corresponding test conditions (temp and strain rate)
 files       = Observable(files)     # trying to switch over to observable
-joinfiles(fs) = join([fs...], "; ")
+joinfiles(fs) = join([fs...], "\n")
 input_files = lift(joinfiles, files)
 bcj         = Observable(BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate[], params[], MPa))
 # lines[1] = data
@@ -113,31 +113,32 @@ dataseries  = Observable(BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_
 
 
 
-# top-level figure
-# figure_padding=(plot_left, plot_right, plot_bot, plot_top)
+# renew screens
 GLMakie.closeall()
-screenf = GLMakie.Screen(; title="BCJ", fullscreen=true, float=true, focus_on_show=true)
-screeng = GLMakie.Screen(; title="Sliders", visible=false)
-f = Figure(size=(600, 400), figure_padding=(0.5, 0.95, 0.2, 0.95), layout=GridLayout(2, 1))
+screen_main = GLMakie.Screen(; title="BCJ", fullscreen=true, float=true, focus_on_show=true)
+screen_sliders = GLMakie.Screen(; title="Sliders", visible=false)
+## top-level figure
+# figure_padding=(plot_left, plot_right, plot_bot, plot_top)
+f = Figure(size=(900, 600), figure_padding=30, layout=GridLayout(2, 1), tellheight=false, tellwidth=false)
 g = Figure()
 # f = Figure(figure_padding=(0.5, 0.95, 0.2, 0.95), layout=GridLayout(3, 1))
 w = @lift widths($(f.scene.viewport))[1]
 # w = @lift widths($(f.scene))[1]
 
-## sub-figure for input parameters of calibration study
+### sub-figure for input parameters of calibration study
 a = GridLayout(f[ 1,  1], 1, 2)
 aa = GridLayout(a[ 1,  1], 4, 3)
-### propsfile
+#### propsfile
 propsfile_label       = Label(aa[ 1,  1], "Path to parameters dictionary:"; halign=:right)
 propsfile_textbox   = Textbox(aa[ 1,  2], placeholder="path/to/dict",
     width=w[], stored_string=propsfile, displayed_string=propsfile)
 propsfile_button     = Button(aa[ 1,  3], label="Browse")
-### experimental datasets
+#### experimental datasets
 expdatasets_label     = Label(aa[ 2,  1], "Paths to experimental datasets:"; halign=:right)
 expdatasets_textbox = Textbox(aa[ 2,  2], placeholder="path/to/experimental datasets",
-    width=w[], stored_string=input_files, displayed_string=input_files)
+    height=10f.scene.theme.fontsize[], width=w[], stored_string=input_files, displayed_string=input_files)
 expdatasets_button   = Button(aa[ 2,  3], label="Browse")
-### loading direction toggles
+#### loading direction toggles
 loadingdirection_label= Label(aa[ 3,  1], "Loading directions in experiments:"; halign=:right)
 aaa = GridLayout(aa[ 3,  2], 1, 2)
 aaaa = GridLayout(aaa[ 1,  1], 1, 2)
@@ -146,14 +147,14 @@ loaddir_axial_toggle  = Toggle(aaaa[ 1,  2], active=true)
 aaab = GridLayout(aaa[ 1,  2], 1, 2)
 loaddir_torsion_label = Label(aaab[ 1,  1], "Torsion:"; halign=:right)
 loaddir_torsion_toggle= Toggle(aaab[ 1,  2], active=false)
-### number of strain increments
+#### number of strain increments
 incnum_label          = Label(aa[ 4,  1], "Number of strain increments for model curves:"; halign=:right)
 incnum_textbox      = Textbox(aa[ 4,  2], placeholder="non-zero integer",
     width=5f.scene.theme.fontsize[], stored_string="200", displayed_string="200", validator=Int64, halign=:left)
-### update calibration study
+#### update calibration study
 buttons_updateinputs = Button(a[ 1,  2], label="Update inputs", valign=:bottom)
 
-## sub-figure for sliders and plot
+### sub-figure for sliders and plot
 b = GridLayout(f[ 2,  1], 1, 2)
 ba = GridLayout(b[ 1,  1], 2, 1)
 baa = GridLayout(ba[1, 1], 3, 1)
@@ -162,14 +163,18 @@ kinematichardening_label = Label(baa[ 2,  1], L"\dot{\mathbf{\alpha}} = h\mu(\th
 isotropichardening_label = Label(baa[ 3,  1], L"\dot{\kappa} = H\mu(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}"; halign=:left)
 # grid_sliders    = GridLayout(ba[ 2,  1], 10, 3)
 showsliders_button = Button(ba[2, 1], label="Show sliders")
-grid_plot       = GridLayout(b[ 1,  2])
+grid_plot       = GridLayout(b[ 1,  2], 10, 9)
 Box(b[1, 1], color=(:red, 0.2), strokewidth=0)
 Box(b[1, 2], color=(:red, 0.2), strokewidth=0)
-# # colsize!(f.layout, 1, Relative(0.45))
-# # colsize!(f.layout, 2, Relative(0.45))
-# colsize!(f.layout, 2, Aspect(1, 1.0))
+# # # colsize!(f.layout, 1, Relative(0.45))
+# # # colsize!(f.layout, 2, Relative(0.45))
+# # colsize!(f.layout, 2, Aspect(1, 1.0))
+# rowsize!(f.layout, 1, Relative(0.3))
+# rowsize!(f.layout, 2, Relative(0.7))
+# rowsize!(b, 1, 3\2w[])
+rowsize!(b, 1, Relative(0.8))
 
-### sliders
+#### sliders
 grid_sliders    = GridLayout(g[1, 1], 10, 3)
 # add toggles for which to calibrate
 toggle_V    = Toggle(grid_sliders[ 1,  1], active=false)
@@ -249,17 +254,17 @@ sg_sliders  = [ # collect sliders
     sg_C19, sg_C20  # Yadj
 ]
 
-### plot
+#### plot
 ax = Axis(grid_plot[ 1:  9,  1:  9],
     xlabel="True Strain (mm/mm)",
     ylabel="True Stress (Pa)",
-    aspect=1.0, width=w[])
+    aspect=1.0, tellheight=true, tellwidth=true) # , height=3\2w[], width=w[])
 xlims!(ax, (0., nothing)); ylims!(ax, (min_stress, max_stress))
 BCJ.plot_sets!(ax, dataseries[], bcj[], Plot_ISVs)
 leg = Observable(axislegend(ax, position=:lt))
 BCJ.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs)
 
-### buttons below plot
+#### buttons below plot
 buttons_grid = GridLayout(grid_plot[ 10,  :], 1, 4)
 buttons_labels = ["Calibrate", "Reset", "Save Props", "Export Curves"]
 buttons = buttons_grid[1, :] = [Button(f, label=bl) for bl in buttons_labels]
@@ -335,7 +340,7 @@ end
 ## interactivity
 ### show sliders
 on(showsliders_button.clicks) do click
-    display(screeng, g)
+    display(screen_sliders, g)
 end
 ### update curves from sliders
 for (i, sgs) in enumerate(sg_sliders)
@@ -555,4 +560,4 @@ end
 
 
 
-display(screenf, f) # that's all folks!
+display(screen_main, f) # that's all folks!
