@@ -4,8 +4,10 @@ using DataFrames
 using Distributed
 using GLMakie
 using LaTeXStrings
-using LsqFit
+# using LsqFit
 using NativeFileDialog
+# using NLsolve
+using Optim
 
 import BammannChiesaJohnsons as BCJ
 
@@ -19,7 +21,7 @@ incnum      = Observable(200)
 istate      = Observable(1)      #1 = tension, 2 = torsion
 Ask_Files   = true
 Material    = "4340"
-Plot_ISVs   = false
+Plot_ISVs   = Observable([:alpha, :kappa])
 MPa         = 1e6           # Unit conversion from MPa to Pa from data
 min_stress  = 0.
 max_stress  = 3000 * MPa
@@ -103,7 +105,7 @@ bcj         = Observable(BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate[
 # lines[2] = model (to be updated)
 # lines[3] = alpha model (to be updated)
 # lines[4] = kappa model (to be updated)
-dataseries  = Observable(BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs))
+dataseries  = Observable(BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs[]))
 
 
 
@@ -117,10 +119,12 @@ dataseries  = Observable(BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_
 GLMakie.closeall()
 screen_main = GLMakie.Screen(; title="BCJ", fullscreen=true, focus_on_show=true)
 screen_sliders = GLMakie.Screen(; title="Sliders", focus_on_show=true)
+screen_isvs = GLMakie.Screen(; title="ISVs") # , focus_on_show=true)
 ## top-level figure
 # figure_padding=(plot_left, plot_right, plot_bot, plot_top)
-f = Figure(size=(900, 600), figure_padding=30, layout=GridLayout(2, 1)) # , tellheight=false, tellwidth=false)
+f = Figure(size=(900, 600), figure_padding=(30, 10, 10, 10), layout=GridLayout(2, 1)) # , tellheight=false, tellwidth=false)
 g = Figure(size=(450, 600))
+h = Figure(size=(600, 400))
 # f = Figure(figure_padding=(0.5, 0.95, 0.2, 0.95), layout=GridLayout(3, 1))
 w = @lift widths($(f.scene.viewport))[1]
 # w = @lift widths($(f.scene))[1]
@@ -148,9 +152,15 @@ aaab = GridLayout(aaa[ 1,  2], 1, 2)
 loaddir_torsion_label = Label(aaab[ 1,  1], "Torsion:"; halign=:right)
 loaddir_torsion_toggle= Toggle(aaab[ 1,  2], active=false)
 #### number of strain increments
-incnum_label          = Label(aa[ 4,  1], "Number of strain increments for model curves:"; halign=:right)
-incnum_textbox      = Textbox(aa[ 4,  2], placeholder="non-zero integer",
+aab = GridLayout(aa[4, :], 1, 2; halign=:left)
+aaba = GridLayout(aab[1, 1], 1, 2; halign=:left)
+incnum_label          = Label(aaba[ 1,  1], "Number of strain increments for model curves:"; halign=:right)
+incnum_textbox      = Textbox(aaba[ 1,  2], placeholder="non-zero integer",
     width=5f.scene.theme.fontsize[], stored_string="200", displayed_string="200", validator=Int64, halign=:left)
+aabb = GridLayout(aab[1, 2], 1, 2; halign=:right)
+Plot_ISVs_label       = Label(aabb[ 1,  1], "Vector of ISV symbols to plot:"; halign=:right)
+Plot_ISVs_textbox   = Textbox(aabb[ 1,  2], placeholder="non-zero integer",
+    width=0.5w[], stored_string=":alpha, :kappa", displayed_string=":alpha, :kappa", halign=:left)
 #### update calibration study
 buttons_updateinputs = Button(a[ 1,  2], label="Update inputs", valign=:bottom)
 
@@ -162,18 +172,18 @@ plasticstrainrate_label     = Label(baa[ 1,  1], L"\dot{\epsilon}_{p} = f(\theta
 kinematichardening_label    = Label(baa[ 2,  1], L"\dot{\mathbf{\alpha}} = h\mu(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}"; halign=:left)
 isotropichardening_label    = Label(baa[ 3,  1], L"\dot{\kappa} = H\mu(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}"; halign=:left)
 flowrule_label              = Label(baa[ 4,  1], L"\phi = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}, \theta)"; halign=:left)
-initialyieldstressbeta_label= Label(baa[ 5,  1], L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}(\frac{|\dot{\epsilon}_{p}|}{f(\theta)})"; halign=:left)
+initialyieldstressbeta_label= Label(baa[ 5,  1], L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)"; halign=:left)
 # grid_sliders    = GridLayout(ba[ 2,  1], 10, 3)
 showsliders_button = Button(ba[2, 1], label="Show sliders")
 grid_plot       = GridLayout(b[ 1,  2], 10, 9)
-Box(b[1, 1], color=(:red, 0.2), strokewidth=0)
-Box(b[1, 2], color=(:red, 0.2), strokewidth=0)
-# # # colsize!(f.layout, 1, Relative(0.45))
-# # # colsize!(f.layout, 2, Relative(0.45))
-# # colsize!(f.layout, 2, Aspect(1, 1.0))
-# rowsize!(f.layout, 1, Relative(0.3))
-# rowsize!(f.layout, 2, Relative(0.7))
-# rowsize!(b, 1, 3\2w[])
+# Box(b[1, 1], color=(:red, 0.2), strokewidth=0)
+# Box(b[1, 2], color=(:red, 0.2), strokewidth=0)
+# # # # colsize!(f.layout, 1, Relative(0.45))
+# # # # colsize!(f.layout, 2, Relative(0.45))
+# # # colsize!(f.layout, 2, Aspect(1, 1.0))
+# # rowsize!(f.layout, 1, Relative(0.3))
+# # rowsize!(f.layout, 2, Relative(0.7))
+# # rowsize!(b, 1, 3\2w[])
 rowsize!(b, 1, Relative(0.8))
 
 #### sliders
@@ -261,19 +271,25 @@ ax = Axis(grid_plot[ 1:  9,  1:  9],
     xlabel="True Strain (mm/mm)",
     ylabel="True Stress (Pa)",
     aspect=1.0, tellheight=true, tellwidth=true) # , height=3\2w[], width=w[])
+ax_isv = Axis(h[1, 1],
+    xlabel="True Strain (mm/mm)",
+    ylabel="True Stress (Pa)")
 xlims!(ax, (0., nothing)); ylims!(ax, (min_stress, max_stress))
-BCJ.plot_sets!(ax, dataseries[], bcj[], Plot_ISVs)
-leg = Observable(axislegend(ax, position=:lt))
-BCJ.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs)
+# xlims!(ax_isv, (0., nothing)); ylims!(ax_isv, (min_stress, max_stress))
+BCJ.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
+leg = Observable(axislegend(ax, position=:rb))
+leg_isv = Observable(axislegend(ax_isv, position=:lt))
+BCJ.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[])
 
 #### buttons below plot
-buttons_grid = GridLayout(grid_plot[ 10,  :], 1, 4)
-buttons_labels = ["Calibrate", "Reset", "Save Props", "Export Curves"]
+buttons_grid = GridLayout(grid_plot[ 10,  :], 1, 5)
+buttons_labels = ["Calibrate", "Reset", "Show ISVs", "Save Props", "Export Curves"]
 buttons = buttons_grid[1, :] = [Button(f, label=bl) for bl in buttons_labels]
 buttons_calibrate       = buttons[1]
 buttons_resetparams     = buttons[2]
-buttons_savecurves      = buttons[3]
-buttons_exportcurves    = buttons[4]
+buttons_showisvs        = buttons[3]
+buttons_savecurves      = buttons[4]
+buttons_exportcurves    = buttons[5]
 
 
 
@@ -323,6 +339,10 @@ end
 ### update input parameters to calibrate
 on(buttons_updateinputs.clicks) do click
     empty!(ax); !isnothing(leg[]) ? delete!(leg[]) : nothing;   notify(leg)
+    empty!(ax_isv); !isnothing(leg_isv[]) ? delete!(leg_isv[]) : nothing; notify(leg_isv)
+    Plot_ISVs[] = begin
+        [Symbol(s[2:end]) for s in split(Plot_ISVs_textbox.displayed_string[], r"(,|;|\s)")]
+    end;                                                        notify(Plot_ISVs)
     incnum[] = parse(Int64, incnum_textbox.displayed_string[]); notify(incnum)
     istate[] = begin
         if loaddir_axial_toggle.active[]
@@ -334,9 +354,10 @@ on(buttons_updateinputs.clicks) do click
         end
     end;                                                        notify(istate)
     bcj[] = BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate[], params[], MPa); notify(bcj)
-    dataseries[] = BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs); notify(dataseries)
-    BCJ.plot_sets!(ax, dataseries[], bcj[], Plot_ISVs)
-    !isnothing(leg) ? (leg[] = axislegend(ax, position=:lt)) : nothing; notify(leg)
+    dataseries[] = BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs[]); notify(dataseries)
+    BCJ.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
+    !isnothing(leg) ? (leg[] = axislegend(ax, position=:rb)) : nothing; notify(leg)
+    !isnothing(leg_isv) ? (leg_isv[] = axislegend(ax_isv, position=:lt)) : nothing; notify(leg_isv)
 end
 
 ## interactivity
@@ -357,7 +378,7 @@ for (i, sgs) in enumerate(sg_sliders)
     on(only(sgs.sliders).value) do val
         # redefine params with new slider values
         params[][BCJ.constant_string(i)] = to_value(val);       notify(params)
-        BCJ.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs)
+        BCJ.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[])
     end
 end
 
@@ -402,9 +423,64 @@ on(buttons_calibrate.clicks) do click
             end
         end
         p = constantstocalibrate # creaty local copy of params[] and modify
-        function multimodel(x, p)
-            # BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
-            #     incnum[], istate[], p[1], p[2]).S
+        # # function multimodel(x, p)
+        # function multimodel(p)
+        #     # BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
+        #     #     incnum[], istate[], p[1], p[2]).S
+        #     kS          = 1     # default tension component
+        #     if istate[] == 2
+        #         kS      = 4     # select torsion component
+        #     end
+        #     r = params[]
+        #     for (i, j) in enumerate(constantstocalibrate_indices)
+        #         r[BCJ.constant_string(j)] = p[i]
+        #     end
+        #     ret_x = Float64[]
+        #     ret_y = Float64[] # zeros(Float64, length(x))
+        #     for i in range(1, bcj[].nsets)
+        #         emax        = maximum(bcj[].test_data["Data_E"][i])
+        #         # println('Setup: emax for set ',i,' = ', emax)
+        #         bcj_ref     = BCJ.BCJ_metal(
+        #             bcj[].test_cond["Temp"][i], bcj[].test_cond["StrainRate"][i],
+        #             emax, incnum[], istate[], r)
+        #         bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref)
+        #         BCJ.solve!(bcj_current)
+        #         idx = []
+        #         for t in bcj[].test_data["Data_E"][i]
+        #             j = findlast(t .<= bcj_current.ϵₜₒₜₐₗ[kS, :])
+        #             push!(idx, if !isnothing(j)
+        #                 j
+        #             else
+        #                 findfirst(t .>= bcj_current.ϵₜₒₜₐₗ[kS, :])
+        #             end)
+        #         end
+        #         append!(ret_x, bcj_current.ϵₜₒₜₐₗ[kS, :][idx])
+        #         append!(ret_y, bcj[].test_data["Data_S"][i] - bcj_current.S[kS, :][idx])
+        #     end
+        #     return ret_y
+        # end
+        # x = Float64[] # zeros(Float64, (bcj[].nsets, length(bcj[].test_data["Data_E"][1])))
+        # y = Float64[] # zeros(Float64, (bcj[].nsets, length(bcj[].test_data["Data_S"][1])))
+        # for i in range(1, bcj[].nsets)
+        #     # println((size(x[i, :]), size(bcj[].test_data["Data_E"][i])))
+        #     # x[i, :] .= bcj[].test_data["Data_E"][i]
+        #     # y[i, :] .= bcj[].test_data["Data_S"][i]
+        #     append!(x, bcj[].test_data["Data_E"][i])
+        #     append!(y, bcj[].test_data["Data_S"][i])
+        # end
+        # # q = curve_fit(multimodel, x, y, p).param
+        # q = nlsolve(multimodel, p).zero
+        function fnc2min(p)
+            # r = params[]
+            # for (i, j) in enumerate(constantstocalibrate_indices)
+            #     r[BCJ.constant_string(j)] = p[i]
+            # end
+            # err = 0.
+            # for i in range(1, bcj[].nsets)
+            #     err += sum((bcj[].test_data["Data_S"][i] - BCJ.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
+            #         incnum[], istate[], r, i).S) .^ 2.)
+            # end
+            # return err
             kS          = 1     # default tension component
             if istate[] == 2
                 kS      = 4     # select torsion component
@@ -413,8 +489,7 @@ on(buttons_calibrate.clicks) do click
             for (i, j) in enumerate(constantstocalibrate_indices)
                 r[BCJ.constant_string(j)] = p[i]
             end
-            ret_x = Float64[]
-            ret_y = Float64[] # zeros(Float64, length(x))
+            err = 0. # zeros(Float64, length(x))
             for i in range(1, bcj[].nsets)
                 emax        = maximum(bcj[].test_data["Data_E"][i])
                 # println('Setup: emax for set ',i,' = ', emax)
@@ -432,21 +507,17 @@ on(buttons_calibrate.clicks) do click
                         findfirst(t .>= bcj_current.ϵₜₒₜₐₗ[kS, :])
                     end)
                 end
-                append!(ret_x, bcj_current.ϵₜₒₜₐₗ[kS, :][idx])
-                append!(ret_y, bcj_current.S[kS, :][idx])
+                # append!(ret_x, bcj_current.ϵₜₒₜₐₗ[kS, :][idx])
+                err += sum((bcj[].test_data["Data_S"][i] - bcj_current.S[kS, :][idx]) .^ 2.)
+                # err += sum((bcj[].test_data["Data_S"][i] - BCJ.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
+                #     incnum[], istate[], r, i).S[idx]) .^ 2.)
             end
-            return ret_y
+            return err
         end
-        x = Float64[] # zeros(Float64, (bcj[].nsets, length(bcj[].test_data["Data_E"][1])))
-        y = Float64[] # zeros(Float64, (bcj[].nsets, length(bcj[].test_data["Data_S"][1])))
-        for i in range(1, bcj[].nsets)
-            # println((size(x[i, :]), size(bcj[].test_data["Data_E"][i])))
-            # x[i, :] .= bcj[].test_data["Data_E"][i]
-            # y[i, :] .= bcj[].test_data["Data_S"][i]
-            append!(x, bcj[].test_data["Data_E"][i])
-            append!(y, bcj[].test_data["Data_S"][i])
-        end
-        q = curve_fit(multimodel, x, y, p).param
+        result = optimize(fnc2min, p, BFGS())
+        println(result)
+        q = Optim.minimizer(result)
+        println((p, q))
         r = params[]
         for (i, j) in enumerate(constantstocalibrate_indices)
             r[BCJ.constant_string(j)] = max(0., q[i])
@@ -539,6 +610,10 @@ on(buttons_resetparams.clicks) do click
             set_close_to!(sgc.sliders[1], c)
             sgc.sliders[1].value[] = to_value(c);               notify(sgc.sliders[1].value)
         end, range(1, nsliders), C_0, sg_sliders)
+end
+### show isv plot
+on(buttons_showisvs.clicks) do click
+    display(screen_isvs, h)
 end
 ### save parameters
 on(buttons_savecurves.clicks) do click

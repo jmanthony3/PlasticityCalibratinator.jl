@@ -2,6 +2,7 @@ using CSV
 using DataFrames
 using Distributed
 using GLMakie
+using LaTeXStrings
 
 struct BCJ_metal_calibrate
     nsets       ::Int64
@@ -17,8 +18,9 @@ constant_string(i) = (i <= 9 ? "C0$i" : "C$i")
 # lines[3] = alpha model (to be updated)
 # lines[4] = kappa model (to be updated)
 function dataseries_init(nsets, test_data, Plot_ISVs)
-    dataseries = if Plot_ISVs
-        [[],[],[],[],[],[]]
+    dataseries = if !isempty(Plot_ISVs)
+        # [[], [], [], [], [], []]
+        [[], [], [], []]
     else
         [[],[]]
     end
@@ -30,10 +32,10 @@ function dataseries_init(nsets, test_data, Plot_ISVs)
         push!(dataseries[1], Observable(DataFrame(x=test_data["Data_E"][i], y=test_data["Data_S"][i])))
         push!(dataseries[2], Observable(DataFrame(x=test_data["Model_E"][i], y=test_data["Model_VM"][i])))
 
-        if Plot_ISVs
-            push!(dataseries[3], Observable(DataFrame(x=test_data["Data_E"][i], y=test_data["Model_alph"][i])))
+        if !isempty(Plot_ISVs)
+            push!(dataseries[3], Observable(DataFrame(x=test_data["Model_E"][i], y=test_data["Model_alph"][i])))
             push!(dataseries[4], Observable(DataFrame(x=test_data["Model_E"][i], y=test_data["Model_kap"][i])))
-            # push!(dataseries[5], Observable(DataFrame(x=test_data["Data_E"][i], y=test_data["Model_tot"][i])))
+            # push!(dataseries[5], Observable(DataFrame(x=test_data["Model_E"][i], y=test_data["Model_tot"][i])))
             # push!(dataseries[6], Observable(DataFrame(x=test_data["Model_E"][i], y=test_data["Model_S"][i])))
         end
     end
@@ -171,20 +173,20 @@ function BCJ_metal_calibrate_update!(BCJ::BCJ_metal_calibrate, incnum, istate, i
     return nothing
 end
 
-function plot_sets!(ax, dataseries, BCJ::BCJ_metal_calibrate, Plot_ISVs)
+function plot_sets!(ax, ax_isv, dataseries, BCJ::BCJ_metal_calibrate, Plot_ISVs)
     for i in range(1, BCJ.nsets)
         scatter!(ax,    @lift(Point2f.($(dataseries[1][i]).x, $(dataseries[1][i]).y)),
             color=i, colormap=:viridis, colorrange=(1, BCJ.nsets), label="Data - " * BCJ.test_cond["Name"][i])
         lines!(ax,      @lift(Point2f.($(dataseries[2][i]).x, $(dataseries[2][i]).y)),
             color=i, colormap=:viridis, colorrange=(1, BCJ.nsets), label="VM Model - " * BCJ.test_cond["Name"][i])
-        if Plot_ISVs
-            scatter!(ax,    @lift(Point2f.($(dataseries[3][i]).x, $(dataseries[3][i]).y)),
-                color=i, colormap=:viridis, colorrange=(1, BCJ.nsets), label="\$\\alpha\$ - " * BCJ.test_cond["Name"][i])
-            lines!(ax,      @lift(Point2f.($(dataseries[4][i]).x, $(dataseries[4][i]).y)),
-                color=i, colormap=:viridis, colorrange=(1, BCJ.nsets), label="\$\\kappa\$ - " * BCJ.test_cond["Name"][i])
-            # scatter(ax,     @lift(Point2f.($(dataseries[5][i]).x, $(dataseries[5][i]).y)),
+        if !isempty(Plot_ISVs)
+            scatter!(ax_isv,    @lift(Point2f.($(dataseries[3][i]).x, $(dataseries[3][i]).y)),
+                color=i, colormap=:viridis, colorrange=(1, BCJ.nsets), label=(s->L"$\alpha$ - %$(s)")(BCJ.test_cond["Name"][i]))
+            lines!(ax_isv,      @lift(Point2f.($(dataseries[4][i]).x, $(dataseries[4][i]).y)),
+                color=i, colormap=:viridis, colorrange=(1, BCJ.nsets), label=(s->L"$\kappa$ - %$(s)")(BCJ.test_cond["Name"][i]))
+            # scatter(ax_isv,     @lift(Point2f.($(dataseries[5][i]).x, $(dataseries[5][i]).y)),
             #     color=i, colormap=:viridis , label="\$total\$ - " * bcj.test_cond["Name"][i]))
-            # lines(ax,       @lift(Point2f.($(dataseries[6][i]).x, $(dataseries[6][i]).y)),
+            # lines(ax_isv,       @lift(Point2f.($(dataseries[6][i]).x, $(dataseries[6][i]).y)),
             #     color=i, colormap=:viridis , label="\$S_{11}\$ - " * bcj.test_cond["Name"][i]))
         end
     end
@@ -195,7 +197,7 @@ function update!(dataseries, BCJ::BCJ_metal_calibrate, incnum, istate, Plot_ISVs
     # for i in range(1, nsets)
         BCJ_metal_calibrate_update!(BCJ, incnum, istate, i)
         dataseries[2][i][].y .= BCJ.test_data["Model_VM"][i]
-        if Plot_ISVs
+        if !isempty(Plot_ISVs)
             dataseries[3][i][].y .= BCJ.test_data["Model_alph"][i]
             dataseries[4][i][].y .= BCJ.test_data["Model_kap"][i]
             # dataseries[5][i][].y .= BCJ.test_data["Model_tot"][i]
