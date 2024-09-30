@@ -115,12 +115,12 @@ dataseries  = Observable(BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_
 
 # renew screens
 GLMakie.closeall()
-screen_main = GLMakie.Screen(; title="BCJ", fullscreen=true, float=true, focus_on_show=true)
-screen_sliders = GLMakie.Screen(; title="Sliders", visible=false)
+screen_main = GLMakie.Screen(; title="BCJ", fullscreen=true, focus_on_show=true)
+screen_sliders = GLMakie.Screen(; title="Sliders", focus_on_show=true)
 ## top-level figure
 # figure_padding=(plot_left, plot_right, plot_bot, plot_top)
-f = Figure(size=(900, 600), figure_padding=30, layout=GridLayout(2, 1), tellheight=false, tellwidth=false)
-g = Figure()
+f = Figure(size=(900, 600), figure_padding=30, layout=GridLayout(2, 1)) # , tellheight=false, tellwidth=false)
+g = Figure(size=(450, 600))
 # f = Figure(figure_padding=(0.5, 0.95, 0.2, 0.95), layout=GridLayout(3, 1))
 w = @lift widths($(f.scene.viewport))[1]
 # w = @lift widths($(f.scene))[1]
@@ -136,7 +136,7 @@ propsfile_button     = Button(aa[ 1,  3], label="Browse")
 #### experimental datasets
 expdatasets_label     = Label(aa[ 2,  1], "Paths to experimental datasets:"; halign=:right)
 expdatasets_textbox = Textbox(aa[ 2,  2], placeholder="path/to/experimental datasets",
-    height=10f.scene.theme.fontsize[], width=w[], stored_string=input_files, displayed_string=input_files)
+    height=5f.scene.theme.fontsize[], width=w[], stored_string=input_files, displayed_string=input_files)
 expdatasets_button   = Button(aa[ 2,  3], label="Browse")
 #### loading direction toggles
 loadingdirection_label= Label(aa[ 3,  1], "Loading directions in experiments:"; halign=:right)
@@ -157,10 +157,12 @@ buttons_updateinputs = Button(a[ 1,  2], label="Update inputs", valign=:bottom)
 ### sub-figure for sliders and plot
 b = GridLayout(f[ 2,  1], 1, 2)
 ba = GridLayout(b[ 1,  1], 2, 1)
-baa = GridLayout(ba[1, 1], 3, 1)
-plasticstrainrate_label = Label(baa[ 1,  1], L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'"; halign=:left)
-kinematichardening_label = Label(baa[ 2,  1], L"\dot{\mathbf{\alpha}} = h\mu(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}"; halign=:left)
-isotropichardening_label = Label(baa[ 3,  1], L"\dot{\kappa} = H\mu(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}"; halign=:left)
+baa = GridLayout(ba[1, 1], 5, 1)
+plasticstrainrate_label     = Label(baa[ 1,  1], L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'"; halign=:left)
+kinematichardening_label    = Label(baa[ 2,  1], L"\dot{\mathbf{\alpha}} = h\mu(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}"; halign=:left)
+isotropichardening_label    = Label(baa[ 3,  1], L"\dot{\kappa} = H\mu(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}"; halign=:left)
+flowrule_label              = Label(baa[ 4,  1], L"\phi = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}, \theta)"; halign=:left)
+initialyieldstressbeta_label= Label(baa[ 5,  1], L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}(\frac{|\dot{\epsilon}_{p}|}{f(\theta)})"; halign=:left)
 # grid_sliders    = GridLayout(ba[ 2,  1], 10, 3)
 showsliders_button = Button(ba[2, 1], label="Show sliders")
 grid_plot       = GridLayout(b[ 1,  2], 10, 9)
@@ -338,9 +340,17 @@ on(buttons_updateinputs.clicks) do click
 end
 
 ## interactivity
+# ### scroll experimental datasets textbox
+# on(events(expdatasets_textbox).scroll) do scroll
+#     translate!(Accum, expdatasets_textbox.scene, 2 .* map(-, scroll))
+# end
 ### show sliders
 on(showsliders_button.clicks) do click
     display(screen_sliders, g)
+end
+### scroll sliders window
+on(events(g).scroll) do scroll
+    translate!(Accum, g.scene, 2 .* map(-, scroll))
 end
 ### update curves from sliders
 for (i, sgs) in enumerate(sg_sliders)
