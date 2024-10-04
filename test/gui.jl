@@ -489,7 +489,55 @@ on(buttons_calibrate.clicks) do click
             for (i, j) in enumerate(constantstocalibrate_indices)
                 r[BCJ.constant_string(j)] = p[i]
             end
-            err = 0. # zeros(Float64, length(x))
+            ret_x = Float64[]
+            ret_y = Float64[] # zeros(Float64, length(x))
+            # err = 0. # zeros(Float64, length(x))
+            for i in range(1, bcj[].nsets)
+                emax        = maximum(bcj[].test_data["Data_E"][i])
+                # println('Setup: emax for set ',i,' = ', emax)
+                bcj_ref     = BCJ.BCJ_metal(
+                    bcj[].test_cond["Temp"][i], bcj[].test_cond["StrainRate"][i],
+                    emax, incnum[], istate[], r)
+                bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref)
+                BCJ.solve!(bcj_current)
+                idx = []
+                for t in bcj[].test_data["Data_E"][i]
+                    j = findlast(t .<= bcj_current.ϵₜₒₜₐₗ[kS, :])
+                    push!(idx, if !isnothing(j)
+                        j
+                    else
+                        findfirst(t .>= bcj_current.ϵₜₒₜₐₗ[kS, :])
+                    end)
+                end
+                append!(ret_x, bcj_current.ϵₜₒₜₐₗ[kS, :][idx])
+                append!(ret_y, bcj[].test_data["Data_S"][i] - bcj_current.S[kS, :][idx])
+                # err += sum((bcj[].test_data["Data_S"][i] - bcj_current.S[kS, :][idx]) .^ 2.)
+                # # err += sum((bcj[].test_data["Data_S"][i] - BCJ.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
+                # #     incnum[], istate[], r, i).S[idx]) .^ 2.)
+            end
+            return ret_y
+            # return err
+        end
+        function fnc2min_grad(p)
+            # r = params[]
+            # for (i, j) in enumerate(constantstocalibrate_indices)
+            #     r[BCJ.constant_string(j)] = p[i]
+            # end
+            # err = 0.
+            # for i in range(1, bcj[].nsets)
+            #     err += sum((bcj[].test_data["Data_S"][i] - BCJ.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
+            #         incnum[], istate[], r, i).S) .^ 2.)
+            # end
+            # return err
+            kS          = 1     # default tension component
+            if istate[] == 2
+                kS      = 4     # select torsion component
+            end
+            r = params[]
+            for (i, j) in enumerate(constantstocalibrate_indices)
+                r[BCJ.constant_string(j)] = p[i]
+            end
+            stress_rate = Float64[]
             for i in range(1, bcj[].nsets)
                 emax        = maximum(bcj[].test_data["Data_E"][i])
                 # println('Setup: emax for set ',i,' = ', emax)
@@ -508,13 +556,11 @@ on(buttons_calibrate.clicks) do click
                     end)
                 end
                 # append!(ret_x, bcj_current.ϵₜₒₜₐₗ[kS, :][idx])
-                err += sum((bcj[].test_data["Data_S"][i] - bcj_current.S[kS, :][idx]) .^ 2.)
-                # err += sum((bcj[].test_data["Data_S"][i] - BCJ.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
-                #     incnum[], istate[], r, i).S[idx]) .^ 2.)
+                append!(stress_rate, 200e9 .* (bcj_current.ϵ_dot_effective .- bcj_current.ϵ_dot_plastic__[kS, :][idx]))
             end
-            return err
+            return stress_rate
         end
-        result = optimize(fnc2min, p, BFGS())
+        result = optimize(fnc2min, fnc2min_grad, p, BFGS())
         println(result)
         q = Optim.minimizer(result)
         println((p, q))
