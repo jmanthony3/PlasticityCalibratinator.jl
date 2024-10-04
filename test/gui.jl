@@ -118,8 +118,8 @@ dataseries  = Observable(BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_
 # renew screens
 GLMakie.closeall()
 screen_main = GLMakie.Screen(; title="BCJ", fullscreen=true, focus_on_show=true)
-screen_sliders = GLMakie.Screen(; title="Sliders", focus_on_show=true)
-screen_isvs = GLMakie.Screen(; title="ISVs") # , focus_on_show=true)
+# screen_sliders = GLMakie.Screen(; title="Sliders", focus_on_show=true)
+# screen_isvs = GLMakie.Screen(; title="ISVs") # , focus_on_show=true)
 ## top-level figure
 # figure_padding=(plot_left, plot_right, plot_bot, plot_top)
 f = Figure(size=(900, 600), figure_padding=(30, 10, 10, 10), layout=GridLayout(2, 1)) # , tellheight=false, tellwidth=false)
@@ -367,6 +367,7 @@ end
 # end
 ### show sliders
 on(showsliders_button.clicks) do click
+    screen_sliders = GLMakie.Screen(; title="Sliders", focus_on_show=true)
     display(screen_sliders, g)
 end
 ### scroll sliders window
@@ -659,6 +660,7 @@ on(buttons_resetparams.clicks) do click
 end
 ### show isv plot
 on(buttons_showisvs.clicks) do click
+    screen_isvs = GLMakie.Screen(; title="ISVs") # , focus_on_show=true)
     display(screen_isvs, h)
 end
 ### save parameters
