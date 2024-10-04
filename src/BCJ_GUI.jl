@@ -54,20 +54,19 @@ function BCJ_metal_calibrate_kernel(test_data, test_cond, incnum, istate, params
         emax, incnum, istate, params)
     bcj_current = BCJ_metal_currentconfiguration_init(bcj_ref)
     solve!(bcj_current)
-    ϵₙ          = bcj_current.ϵₜₒₜₐₗ
-    Sₙ          = bcj_current.S
-    α           = bcj_current.α
+    ϵ__         = bcj_current.ϵ__
+    σ__         = bcj_current.σ__
+    α__         = bcj_current.α__
     κ           = bcj_current.κ
-    Tot         = bcj_current.Tot
 
     # pull only the relevant (tension/torsion) strain being evaluated:
-    E       = ϵₙ[kS, :]
-    S       = Sₙ[kS, :]
-    SVM     = sum(map.(x->x^2., [Sₙ[1, :] - Sₙ[2, :], Sₙ[2, :] - Sₙ[3, :], Sₙ[3, :] - Sₙ[1, :]])) + (
-        6sum(map.(x->x^2., [Sₙ[4, :], Sₙ[5, :], Sₙ[6, :]])))
-    SVM     = sqrt.(SVM .* 0.5)
-    Al      = α[kS, :]
-    return (E=E, S=S, SVM=SVM, Al=Al, κ=κ, Tot=Tot)
+    ϵ       = ϵ__[kS, :]
+    σ       = σ__[kS, :]
+    σvM     = sum(map.(x->x^2., [σ__[1, :] - σ__[2, :], σ__[2, :] - σ__[3, :], σ__[3, :] - σ__[1, :]])) + (
+        6sum(map.(x->x^2., [σ__[4, :], σ__[5, :], σ__[6, :]])))
+    σvM     = sqrt.(σvM .* 0.5)
+    α       = α__[kS, :]
+    return (ϵ=ϵ, σ=σ, σvM=σvM, α=α, κ=κ)
 end
 
 # FORMATTING: test_data[i][[e_data,s_data] , [e_model,s_model] , [e_err, s_err]]
@@ -84,8 +83,7 @@ function BCJ_metal_calibrate_init(files, incnum, istate, params, Scale_MPa)::BCJ
         "Model_S"       => [],
         "Model_VM"      => [],
         "Model_alph"    => [],
-        "Model_kap"     => [],
-        "Model_tot"     => []
+        "Model_kap"     => []
     )
     nsets = length(files)
     for (i, file) in enumerate(files)
@@ -148,14 +146,13 @@ function BCJ_metal_calibrate_init(files, incnum, istate, params, Scale_MPa)::BCJ
         # push!(test_data["Model_kap"],   κ)
         # push!(test_data["Model_tot"],   Tot)
         # push!(test_data["Model_VM"],    SVM)
-        push!(test_data["Model_E"],     (i, sol.E))
-        push!(test_data["Model_S"],     (i, sol.S))
-        push!(test_data["Model_alph"],  (i, sol.Al))
+        push!(test_data["Model_E"],     (i, sol.ϵ))
+        push!(test_data["Model_S"],     (i, sol.σ))
+        push!(test_data["Model_alph"],  (i, sol.α))
         push!(test_data["Model_kap"],   (i, sol.κ))
-        push!(test_data["Model_tot"],   (i, sol.Tot))
-        push!(test_data["Model_VM"],    (i, sol.SVM))
+        push!(test_data["Model_VM"],    (i, sol.σvM))
     end
-    for key in ("Model_E", "Model_S", "Model_alph", "Model_kap", "Model_tot", "Model_VM")
+    for key in ("Model_E", "Model_S", "Model_alph", "Model_kap", "Model_VM")
         for (i, x) in enumerate(sort(test_data[key], by=x->first(x)))
             test_data[key][i] = last(x)
         end
@@ -165,11 +162,10 @@ end
 
 function BCJ_metal_calibrate_update!(BCJ::BCJ_metal_calibrate, incnum, istate, i)
     sol = BCJ_metal_calibrate_kernel(BCJ.test_data, BCJ.test_cond, incnum, istate, BCJ.params, i)
-    BCJ.test_data["Model_VM"][i]   .= sol.SVM
-    BCJ.test_data["Model_alph"][i] .= sol.Al
+    BCJ.test_data["Model_S"][i]    .= sol.σ
+    BCJ.test_data["Model_VM"][i]   .= sol.σvM
+    BCJ.test_data["Model_alph"][i] .= sol.α
     BCJ.test_data["Model_kap"][i]  .= sol.κ
-    BCJ.test_data["Model_tot"][i]  .= sol.Tot
-    BCJ.test_data["Model_S"][i]    .= sol.S
     return nothing
 end
 
