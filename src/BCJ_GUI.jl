@@ -42,7 +42,7 @@ function dataseries_init(nsets, test_data, Plot_ISVs)
     return dataseries
 end
 
-function BCJ_metal_calibrate_kernel(test_data, test_cond, incnum, istate, params, i)::NamedTuple
+function BCJ_metal_calibrate_kernel(test_data, test_cond, incnum, istate, params, i, ISV_Model)::NamedTuple
     kS          = 1     # default tension component
     if istate == 2
         kS      = 4     # select torsion component
@@ -52,7 +52,7 @@ function BCJ_metal_calibrate_kernel(test_data, test_cond, incnum, istate, params
     bcj_ref     = BCJ_metal(
         test_cond["Temp"][i], test_cond["StrainRate"][i],
         emax, incnum, istate, params)
-    bcj_current = BCJ_metal_currentconfiguration_init(bcj_ref)
+    bcj_current = BCJ_metal_currentconfiguration_init(bcj_ref, ISV_Model)
     solve!(bcj_current)
     ϵ__         = bcj_current.ϵ__
     σ__         = bcj_current.σ__
@@ -70,7 +70,7 @@ function BCJ_metal_calibrate_kernel(test_data, test_cond, incnum, istate, params
 end
 
 # FORMATTING: test_data[i][[e_data,s_data] , [e_model,s_model] , [e_err, s_err]]
-function BCJ_metal_calibrate_init(files, incnum, istate, params, Scale_MPa)::BCJ_metal_calibrate
+function BCJ_metal_calibrate_init(files, incnum, istate, params, Scale_MPa, ISV_Model)::BCJ_metal_calibrate
     test_cond   = Dict(
         "StrainRate"    => [],
         "Temp"          => [],
@@ -138,7 +138,7 @@ function BCJ_metal_calibrate_init(files, incnum, istate, params, Scale_MPa)::BCJ
     # For each set, calculate the model curve and error
     @sync @distributed for i in range(1, nsets)
     # for i in range(1, nsets)
-        sol = BCJ_metal_calibrate_kernel(test_data, test_cond, incnum, istate, params, i)
+        sol = BCJ_metal_calibrate_kernel(test_data, test_cond, incnum, istate, params, i, ISV_Model)
         # test_data[i][1] = [E,S,Al,kap,tot,SVM]             #Store model stress/strain data
         # push!(test_data["Model_E"],     E)
         # push!(test_data["Model_S"],     S)
@@ -160,8 +160,8 @@ function BCJ_metal_calibrate_init(files, incnum, istate, params, Scale_MPa)::BCJ
     return BCJ_metal_calibrate(nsets, test_data, test_cond, params)
 end
 
-function BCJ_metal_calibrate_update!(BCJ::BCJ_metal_calibrate, incnum, istate, i)
-    sol = BCJ_metal_calibrate_kernel(BCJ.test_data, BCJ.test_cond, incnum, istate, BCJ.params, i)
+function BCJ_metal_calibrate_update!(BCJ::BCJ_metal_calibrate, incnum, istate, i, ISV_Model)
+    sol = BCJ_metal_calibrate_kernel(BCJ.test_data, BCJ.test_cond, incnum, istate, BCJ.params, i, ISV_Model)
     BCJ.test_data["Model_S"][i]    .= sol.σ
     BCJ.test_data["Model_VM"][i]   .= sol.σvM
     BCJ.test_data["Model_alph"][i] .= sol.α
@@ -188,10 +188,10 @@ function plot_sets!(ax, ax_isv, dataseries, BCJ::BCJ_metal_calibrate, Plot_ISVs)
     end
 end
 
-function update!(dataseries, BCJ::BCJ_metal_calibrate, incnum, istate, Plot_ISVs)
+function update!(dataseries, BCJ::BCJ_metal_calibrate, incnum, istate, Plot_ISVs, ISV_Model)
     @sync @distributed for i in range(1, BCJ.nsets)
     # for i in range(1, nsets)
-        BCJ_metal_calibrate_update!(BCJ, incnum, istate, i)
+        BCJ_metal_calibrate_update!(BCJ, incnum, istate, i, ISV_Model)
         dataseries[2][i][].y .= BCJ.test_data["Model_VM"][i]
         if !isempty(Plot_ISVs)
             dataseries[3][i][].y .= BCJ.test_data["Model_alph"][i]

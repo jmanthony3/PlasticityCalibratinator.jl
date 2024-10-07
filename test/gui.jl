@@ -21,6 +21,7 @@ incnum      = Observable(200)
 istate      = Observable(1)      #1 = tension, 2 = torsion
 Ask_Files   = true
 Material    = "4340"
+ISV_Model = Observable(BCJ.DK)
 Plot_ISVs   = Observable([:alpha, :kappa])
 MPa         = 1e6           # Unit conversion from MPa to Pa from data
 min_stress  = 0.
@@ -100,7 +101,7 @@ params      = Observable(Dict( # collect as dictionary
 files       = Observable(files)     # trying to switch over to observable
 joinfiles(fs) = join([fs...], "\n")
 input_files = lift(joinfiles, files)
-bcj         = Observable(BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate[], params[], MPa))
+bcj         = Observable(BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate[], params[], MPa, ISV_Model[]))
 # lines[1] = data
 # lines[2] = model (to be updated)
 # lines[3] = alpha model (to be updated)
@@ -164,17 +165,20 @@ Plot_ISVs_textbox   = Textbox(aabb[ 1,  2], placeholder="non-zero integer",
 #### update calibration study
 buttons_updateinputs = Button(a[ 1,  2], label="Update inputs", valign=:bottom)
 
-### sub-figure for sliders and plot
+### sub-figure for model selection, sliders, and plot
 b = GridLayout(f[ 2,  1], 1, 2)
-ba = GridLayout(b[ 1,  1], 2, 1)
-baa = GridLayout(ba[1, 1], 5, 1)
-plasticstrainrate_label     = Label(baa[ 1,  1], L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'"; halign=:left)
-kinematichardening_label    = Label(baa[ 2,  1], L"\dot{\mathbf{\alpha}} = h\mu(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}"; halign=:left)
-isotropichardening_label    = Label(baa[ 3,  1], L"\dot{\kappa} = H\mu(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}"; halign=:left)
-flowrule_label              = Label(baa[ 4,  1], L"\phi = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}, \theta)"; halign=:left)
-initialyieldstressbeta_label= Label(baa[ 5,  1], L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)"; halign=:left)
+ba = GridLayout(b[ 1,  1], 3, 1)
+baa = GridLayout(ba[1, 1], 1, 1)
+modelselection_title_label  = Label(baa[ 1,  1], "Model Selection")
+modelselection_menu         = Menu(baa[ 1,  2], options=zip(["Bammann1990Modeling", "DK"], [BCJ.Bammann1990Modeling, BCJ.DK]), default="DK")
+bab = GridLayout(ba[2, 1], 5, 1)
+plasticstrainrate_label     = Label(bab[ 1,  1], L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'"; halign=:left)
+kinematichardening_label    = Label(bab[ 2,  1], L"\dot{\mathbf{\alpha}} = h\mu(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}"; halign=:left)
+isotropichardening_label    = Label(bab[ 3,  1], L"\dot{\kappa} = H\mu(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}"; halign=:left)
+flowrule_label              = Label(bab[ 4,  1], L"\phi = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}, \theta)"; halign=:left)
+initialyieldstressbeta_label= Label(bab[ 5,  1], L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)"; halign=:left)
 # grid_sliders    = GridLayout(ba[ 2,  1], 10, 3)
-showsliders_button = Button(ba[2, 1], label="Show sliders")
+showsliders_button = Button(ba[3, 1], label="Show sliders")
 grid_plot       = GridLayout(b[ 1,  2], 10, 9)
 # Box(b[1, 1], color=(:red, 0.2), strokewidth=0)
 # Box(b[1, 2], color=(:red, 0.2), strokewidth=0)
@@ -224,35 +228,35 @@ textbox_Rs  = Label(grid_sliders[ 9,  2], L"R_{s} = C_{17} \mathrm{exp}(-C_{18} 
 textbox_Yadj= Label(grid_sliders[10,  2], L"Y_{adj}")
 # make a slider for each constant
 # V
-sg_C01      = SliderGrid(grid_sliders[ 1,  3][ 1,  1], (label=L"C_{ 1}", range=0.:10.:5C_0[ 1], format="{:.3e}", startvalue=C_0[ 1])) # , width=0.4w[]))
-sg_C02      = SliderGrid(grid_sliders[ 1,  3][ 2,  1], (label=L"C_{ 2}", range=0.:10.:5C_0[ 2], format="{:.3e}", startvalue=C_0[ 2])) # , width=0.4w[]))
+sg_C01      = SliderGrid(grid_sliders[ 1,  3][ 1,  1], (label=L"C_{ 1}", range=range(0., 5C_0[ 1]; length=1_000), format="{:.3e}", startvalue=C_0[ 1])) # , width=0.4w[]))
+sg_C02      = SliderGrid(grid_sliders[ 1,  3][ 2,  1], (label=L"C_{ 2}", range=range(0., 5C_0[ 2]; length=1_000), format="{:.3e}", startvalue=C_0[ 2])) # , width=0.4w[]))
 # Y
-sg_C03      = SliderGrid(grid_sliders[ 2,  3][ 1,  1], (label=L"C_{ 3}", range=0.:10.:5C_0[ 3], format="{:.3e}", startvalue=C_0[ 3])) # , width=0.4w[]))
-sg_C04      = SliderGrid(grid_sliders[ 2,  3][ 2,  1], (label=L"C_{ 4}", range=0.:10.:5C_0[ 4], format="{:.3e}", startvalue=C_0[ 4])) # , width=0.4w[]))
+sg_C03      = SliderGrid(grid_sliders[ 2,  3][ 1,  1], (label=L"C_{ 3}", range=range(0., 5C_0[ 3]; length=1_000), format="{:.3e}", startvalue=C_0[ 3])) # , width=0.4w[]))
+sg_C04      = SliderGrid(grid_sliders[ 2,  3][ 2,  1], (label=L"C_{ 4}", range=range(0., 5C_0[ 4]; length=1_000), format="{:.3e}", startvalue=C_0[ 4])) # , width=0.4w[]))
 # f
-sg_C05      = SliderGrid(grid_sliders[ 3,  3][ 1,  1], (label=L"C_{ 5}", range=0.:10.:5C_0[ 5], format="{:.3e}", startvalue=C_0[ 5])) # , width=0.4w[]))
-sg_C06      = SliderGrid(grid_sliders[ 3,  3][ 2,  1], (label=L"C_{ 6}", range=0.:10.:5C_0[ 6], format="{:.3e}", startvalue=C_0[ 6])) # , width=0.4w[]))
+sg_C05      = SliderGrid(grid_sliders[ 3,  3][ 1,  1], (label=L"C_{ 5}", range=range(0., 5C_0[ 5]; length=1_000), format="{:.3e}", startvalue=C_0[ 5])) # , width=0.4w[]))
+sg_C06      = SliderGrid(grid_sliders[ 3,  3][ 2,  1], (label=L"C_{ 6}", range=range(0., 5C_0[ 6]; length=1_000), format="{:.3e}", startvalue=C_0[ 6])) # , width=0.4w[]))
 # rd
-sg_C07      = SliderGrid(grid_sliders[ 4,  3][ 1,  1], (label=L"C_{ 7}", range=0.:10.:5C_0[ 7], format="{:.3e}", startvalue=C_0[ 7])) # , width=0.4w[]))
-sg_C08      = SliderGrid(grid_sliders[ 4,  3][ 2,  1], (label=L"C_{ 8}", range=0.:10.:5C_0[ 8], format="{:.3e}", startvalue=C_0[ 8])) # , width=0.4w[]))
+sg_C07      = SliderGrid(grid_sliders[ 4,  3][ 1,  1], (label=L"C_{ 7}", range=range(0., 5C_0[ 7]; length=1_000), format="{:.3e}", startvalue=C_0[ 7])) # , width=0.4w[]))
+sg_C08      = SliderGrid(grid_sliders[ 4,  3][ 2,  1], (label=L"C_{ 8}", range=range(0., 5C_0[ 8]; length=1_000), format="{:.3e}", startvalue=C_0[ 8])) # , width=0.4w[]))
 # h
-sg_C09      = SliderGrid(grid_sliders[ 5,  3][ 1,  1], (label=L"C_{ 9}", range=0.:10.:5C_0[ 9], format="{:.3e}", startvalue=C_0[ 9])) # , width=0.4w[]))
-sg_C10      = SliderGrid(grid_sliders[ 5,  3][ 2,  1], (label=L"C_{10}", range=0.:10.:5C_0[10], format="{:.3e}", startvalue=C_0[10])) # , width=0.4w[]))
+sg_C09      = SliderGrid(grid_sliders[ 5,  3][ 1,  1], (label=L"C_{ 9}", range=range(0., 5C_0[ 9]; length=1_000), format="{:.3e}", startvalue=C_0[ 9])) # , width=0.4w[]))
+sg_C10      = SliderGrid(grid_sliders[ 5,  3][ 2,  1], (label=L"C_{10}", range=range(0., 5C_0[10]; length=1_000), format="{:.3e}", startvalue=C_0[10])) # , width=0.4w[]))
 # rs
-sg_C11      = SliderGrid(grid_sliders[ 6,  3][ 1,  1], (label=L"C_{11}", range=0.:10.:5C_0[11], format="{:.3e}", startvalue=C_0[11])) # , width=0.4w[]))
-sg_C12      = SliderGrid(grid_sliders[ 6,  3][ 2,  1], (label=L"C_{12}", range=0.:10.:5C_0[12], format="{:.3e}", startvalue=C_0[12])) # , width=0.4w[]))
+sg_C11      = SliderGrid(grid_sliders[ 6,  3][ 1,  1], (label=L"C_{11}", range=range(0., 5C_0[11]; length=1_000), format="{:.3e}", startvalue=C_0[11])) # , width=0.4w[]))
+sg_C12      = SliderGrid(grid_sliders[ 6,  3][ 2,  1], (label=L"C_{12}", range=range(0., 5C_0[12]; length=1_000), format="{:.3e}", startvalue=C_0[12])) # , width=0.4w[]))
 # Rd
-sg_C13      = SliderGrid(grid_sliders[ 7,  3][ 1,  1], (label=L"C_{13}", range=0.:10.:5C_0[13], format="{:.3e}", startvalue=C_0[13])) # , width=0.4w[]))
-sg_C14      = SliderGrid(grid_sliders[ 7,  3][ 2,  1], (label=L"C_{14}", range=0.:10.:5C_0[14], format="{:.3e}", startvalue=C_0[14])) # , width=0.4w[]))
+sg_C13      = SliderGrid(grid_sliders[ 7,  3][ 1,  1], (label=L"C_{13}", range=range(0., 5C_0[13]; length=1_000), format="{:.3e}", startvalue=C_0[13])) # , width=0.4w[]))
+sg_C14      = SliderGrid(grid_sliders[ 7,  3][ 2,  1], (label=L"C_{14}", range=range(0., 5C_0[14]; length=1_000), format="{:.3e}", startvalue=C_0[14])) # , width=0.4w[]))
 # H
-sg_C15      = SliderGrid(grid_sliders[ 8,  3][ 1,  1], (label=L"C_{15}", range=0.:10.:5C_0[15], format="{:.3e}", startvalue=C_0[15])) # , width=0.4w[]))
-sg_C16      = SliderGrid(grid_sliders[ 8,  3][ 2,  1], (label=L"C_{16}", range=0.:10.:5C_0[16], format="{:.3e}", startvalue=C_0[16])) # , width=0.4w[]))
+sg_C15      = SliderGrid(grid_sliders[ 8,  3][ 1,  1], (label=L"C_{15}", range=range(0., 5C_0[15]; length=1_000), format="{:.3e}", startvalue=C_0[15])) # , width=0.4w[]))
+sg_C16      = SliderGrid(grid_sliders[ 8,  3][ 2,  1], (label=L"C_{16}", range=range(0., 5C_0[16]; length=1_000), format="{:.3e}", startvalue=C_0[16])) # , width=0.4w[]))
 # Rs
-sg_C17      = SliderGrid(grid_sliders[ 9,  3][ 1,  1], (label=L"C_{17}", range=0.:10.:5C_0[17], format="{:.3e}", startvalue=C_0[17])) # , width=0.4w[]))
-sg_C18      = SliderGrid(grid_sliders[ 9,  3][ 2,  1], (label=L"C_{18}", range=0.:10.:5C_0[18], format="{:.3e}", startvalue=C_0[18])) # , width=0.4w[]))
+sg_C17      = SliderGrid(grid_sliders[ 9,  3][ 1,  1], (label=L"C_{17}", range=range(0., 5C_0[17]; length=1_000), format="{:.3e}", startvalue=C_0[17])) # , width=0.4w[]))
+sg_C18      = SliderGrid(grid_sliders[ 9,  3][ 2,  1], (label=L"C_{18}", range=range(0., 5C_0[18]; length=1_000), format="{:.3e}", startvalue=C_0[18])) # , width=0.4w[]))
 # Yadj
-sg_C19      = SliderGrid(grid_sliders[10,  3][ 1,  1], (label=L"C_{19}", range=0.:10.:5C_0[19], format="{:.3e}", startvalue=C_0[19])) # , width=0.4w[]))
-sg_C20      = SliderGrid(grid_sliders[10,  3][ 2,  1], (label=L"C_{20}", range=0.:10.:5C_0[20], format="{:.3e}", startvalue=C_0[20])) # , width=0.4w[]))
+sg_C19      = SliderGrid(grid_sliders[10,  3][ 1,  1], (label=L"C_{19}", range=range(0., 5C_0[19]; length=1_000), format="{:.3e}", startvalue=C_0[19])) # , width=0.4w[]))
+sg_C20      = SliderGrid(grid_sliders[10,  3][ 2,  1], (label=L"C_{20}", range=range(0., 5C_0[20]; length=1_000), format="{:.3e}", startvalue=C_0[20])) # , width=0.4w[]))
 sg_sliders  = [ # collect sliders
     sg_C01, sg_C02, # V
     sg_C03, sg_C04, # Y
@@ -279,7 +283,7 @@ xlims!(ax, (0., nothing)); ylims!(ax, (min_stress, max_stress))
 BCJ.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
 leg = Observable(axislegend(ax, position=:rb))
 leg_isv = Observable(axislegend(ax_isv, position=:lt))
-BCJ.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[])
+BCJ.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], ISV_Model[])
 
 #### buttons below plot
 buttons_grid = GridLayout(grid_plot[ 10,  :], 1, 5)
@@ -353,7 +357,7 @@ on(buttons_updateinputs.clicks) do click
             error("'Tension/Compression' or 'Torsion' needs to be toggled on.")
         end
     end;                                                        notify(istate)
-    bcj[] = BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate[], params[], MPa); notify(bcj)
+    bcj[] = BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate[], params[], MPa, ISV_Model[]); notify(bcj)
     dataseries[] = BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs[]); notify(dataseries)
     BCJ.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
     !isnothing(leg) ? (leg[] = axislegend(ax, position=:rb)) : nothing; notify(leg)
@@ -365,6 +369,11 @@ end
 # on(events(expdatasets_textbox).scroll) do scroll
 #     translate!(Accum, expdatasets_textbox.scene, 2 .* map(-, scroll))
 # end
+### model selection (menu)
+on(modelselection_menu.selection) do s
+    ISV_Model[] = s; notify(ISV_Model)
+    # notify(modelselection_menu.selection)
+end
 ### show sliders
 on(showsliders_button.clicks) do click
     screen_sliders = GLMakie.Screen(; title="Sliders", focus_on_show=true)
@@ -379,7 +388,7 @@ for (i, sgs) in enumerate(sg_sliders)
     on(only(sgs.sliders).value) do val
         # redefine params with new slider values
         params[][BCJ.constant_string(i)] = to_value(val);       notify(params)
-        BCJ.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[])
+        BCJ.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], ISV_Model[])
     end
 end
 
@@ -444,7 +453,7 @@ on(buttons_calibrate.clicks) do click
         #         bcj_ref     = BCJ.BCJ_metal(
         #             bcj[].test_cond["Temp"][i], bcj[].test_cond["StrainRate"][i],
         #             emax, incnum[], istate[], r)
-        #         bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref)
+        #         bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref, BCJ.DK)
         #         BCJ.solve!(bcj_current)
         #         idx = []
         #         for t in bcj[].test_data["Data_E"][i]
@@ -499,7 +508,7 @@ on(buttons_calibrate.clicks) do click
                 bcj_ref     = BCJ.BCJ_metal(
                     bcj[].test_cond["Temp"][i], bcj[].test_cond["StrainRate"][i],
                     emax, incnum[], istate[], r)
-                bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref)
+                bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref, BCJ.DK)
                 BCJ.solve!(bcj_current)
                 idx = []
                 for t in bcj[].test_data["Data_E"][i]
@@ -545,7 +554,7 @@ on(buttons_calibrate.clicks) do click
                 bcj_ref     = BCJ.BCJ_metal(
                     bcj[].test_cond["Temp"][i], bcj[].test_cond["StrainRate"][i],
                     emax, incnum[], istate[], r)
-                bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref)
+                bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref, BCJ.DK)
                 BCJ.solve!(bcj_current)
                 idx = []
                 for t in bcj[].test_data["Data_E"][i]
@@ -665,7 +674,7 @@ on(buttons_showisvs.clicks) do click
 end
 ### save parameters
 on(buttons_savecurves.clicks) do click
-    props_dir, props_name = dirname(propsfile), basename(propsfile)
+    props_dir, props_name = dirname(propsfile[]), basename(propsfile[])
     # "Save new props file"
     propsfile_new = save_file(; filterlist="csv")
     df = DataFrame(
@@ -677,7 +686,7 @@ on(buttons_savecurves.clicks) do click
 end
 ### export curves
 on(buttons_exportcurves.clicks) do click
-    props_dir, props_name = dirname(propsfile), basename(propsfile)
+    props_dir, props_name = dirname(propsfile[]), basename(propsfile[])
     curvefile_new = save_file(; filterlist="csv")
     header, df = [], DataFrame()
     for (i, test_name, test_strain, test_stress) in zip(range(1, bcj[].nsets), bcj[].test_cond["Name"], bcj[].test_data["Model_E"], bcj[].test_data["Model_VM"])
