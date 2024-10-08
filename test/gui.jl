@@ -67,35 +67,36 @@ C_amp[20]   = 300.0
 # material properties
 include("filepaths.jl")
 propsfile   = Observable(propsfile) # trying to switch over to observable
-df          = CSV.read(propsfile[], DataFrame; header=true, delim=',', types=[String, Float64])
-rowsofconstants = findall(occursin.(r"C\d{2}", df[!, "Comment"]))
-C_0[rowsofconstants] .= df[!, "For Calibration with vumat"][rowsofconstants]
-bulk_mod    = df[!, "For Calibration with vumat"][findfirst(occursin("Bulk Mod"), df[!, "Comment"])]
-shear_mod   = df[!, "For Calibration with vumat"][findfirst(occursin("Shear Mod"), df[!, "Comment"])]
-params      = Observable(Dict( # collect as dictionary
-    "C01"       => C_0[ 1],
-    "C02"       => C_0[ 2],
-    "C03"       => C_0[ 3],
-    "C04"       => C_0[ 4],
-    "C05"       => C_0[ 5],
-    "C06"       => C_0[ 6],
-    "C07"       => C_0[ 7],
-    "C08"       => C_0[ 8],
-    "C09"       => C_0[ 9],
-    "C10"       => C_0[10],
-    "C11"       => C_0[11],
-    "C12"       => C_0[12],
-    "C13"       => C_0[13],
-    "C14"       => C_0[14],
-    "C15"       => C_0[15],
-    "C16"       => C_0[16],
-    "C17"       => C_0[17],
-    "C18"       => C_0[18],
-    "C19"       => C_0[19],
-    "C20"       => C_0[20],
-    "bulk_mod"  => bulk_mod,
-    "shear_mod" => shear_mod
-))
+params      = @lift begin
+    df          = CSV.read($propsfile, DataFrame; header=true, delim=',', types=[String, Float64])
+    rowsofconstants = findall(occursin.(r"C\d{2}", df[!, "Comment"]))
+    C_0[rowsofconstants] .= df[!, "For Calibration with vumat"][rowsofconstants]
+    bulk_mod    = df[!, "For Calibration with vumat"][findfirst(occursin("Bulk Mod"), df[!, "Comment"])]
+    shear_mod   = df[!, "For Calibration with vumat"][findfirst(occursin("Shear Mod"), df[!, "Comment"])]
+    Dict( # collect as dictionary
+        "C01"       => C_0[ 1],
+        "C02"       => C_0[ 2],
+        "C03"       => C_0[ 3],
+        "C04"       => C_0[ 4],
+        "C05"       => C_0[ 5],
+        "C06"       => C_0[ 6],
+        "C07"       => C_0[ 7],
+        "C08"       => C_0[ 8],
+        "C09"       => C_0[ 9],
+        "C10"       => C_0[10],
+        "C11"       => C_0[11],
+        "C12"       => C_0[12],
+        "C13"       => C_0[13],
+        "C14"       => C_0[14],
+        "C15"       => C_0[15],
+        "C16"       => C_0[16],
+        "C17"       => C_0[17],
+        "C18"       => C_0[18],
+        "C19"       => C_0[19],
+        "C20"       => C_0[20],
+        "bulk_mod"  => bulk_mod,
+        "shear_mod" => shear_mod)
+end
 # ------------------------------------------------
 # store stress-strain data and corresponding test conditions (temp and strain rate)
 files       = Observable(files)     # trying to switch over to observable
@@ -678,8 +679,8 @@ on(buttons_savecurves.clicks) do click
     # "Save new props file"
     propsfile_new = save_file(; filterlist="csv")
     df = DataFrame(
-        "Constants" => [BCJ.constant_string.(range(1, nsliders))..., "Bulk Mod", "Shear Mod"],
-        "Values"    => [[only(sgc.sliders).value[] for sgc in sg_sliders]..., bulk_mod, shear_mod]
+        "Comment" => [BCJ.constant_string.(range(1, nsliders))..., "Bulk Mod", "Shear Mod"],
+        "For Calibration with vumat"    => [[only(sgc.sliders).value[] for sgc in sg_sliders]..., bulk_mod, shear_mod]
     )
     CSV.write(propsfile_new, df)
     println("New props file written to: \"", propsfile_new, "\"")
