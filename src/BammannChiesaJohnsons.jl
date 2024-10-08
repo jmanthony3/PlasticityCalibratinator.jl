@@ -18,5 +18,6 @@ export BCJ_metal_calibrate_kernel
 export BCJ_metal_calibrate_init
 export BCJ_metal_calibrate_update!
 export update!
+export reset_sliders!
 
 end

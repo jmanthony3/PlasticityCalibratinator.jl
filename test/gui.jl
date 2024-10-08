@@ -345,6 +345,7 @@ end
 on(buttons_updateinputs.clicks) do click
     empty!(ax); !isnothing(leg[]) ? delete!(leg[]) : nothing;   notify(leg)
     empty!(ax_isv); !isnothing(leg_isv[]) ? delete!(leg_isv[]) : nothing; notify(leg_isv)
+    BCJ.reset_sliders!(params, sg_sliders, C_0, nsliders)
     Plot_ISVs[] = begin
         [Symbol(s[2:end]) for s in split(Plot_ISVs_textbox.displayed_string[], r"(,|;|\s)")]
     end;                                                        notify(Plot_ISVs)
@@ -657,16 +658,17 @@ on(buttons_calibrate.clicks) do click
 end
 ### reset sliders/parameters
 on(buttons_resetparams.clicks) do click
-    # for (i, c, sgc) in zip(range(1, nsliders), C_0, sg_sliders)
-    #     params[][BCJ.constant_string(i)] = to_value(c);         notify(params)
-    #     set_close_to!(sgc.sliders[1], c)
-    #     sgc.sliders[1].value[] = to_value(c);                   notify(sgc.sliders[1].value)
-    # end
-    asyncmap((i, c, sgc)->begin # attempt multi-threading
-            params[][BCJ.constant_string(i)] = to_value(c);     notify(params)
-            set_close_to!(sgc.sliders[1], c)
-            sgc.sliders[1].value[] = to_value(c);               notify(sgc.sliders[1].value)
-        end, range(1, nsliders), C_0, sg_sliders)
+    # # for (i, c, sgc) in zip(range(1, nsliders), C_0, sg_sliders)
+    # #     params[][BCJ.constant_string(i)] = to_value(c);         notify(params)
+    # #     set_close_to!(sgc.sliders[1], c)
+    # #     sgc.sliders[1].value[] = to_value(c);                   notify(sgc.sliders[1].value)
+    # # end
+    # asyncmap((i, c, sgc)->begin # attempt multi-threading
+    #         params[][BCJ.constant_string(i)] = to_value(c);     notify(params)
+    #         set_close_to!(sgc.sliders[1], c)
+    #         sgc.sliders[1].value[] = to_value(c);               notify(sgc.sliders[1].value)
+    #     end, range(1, nsliders), C_0, sg_sliders)
+    BCJ.reset_sliders!(params, sg_sliders, C_0, nsliders)
 end
 ### show isv plot
 on(buttons_showisvs.clicks) do click

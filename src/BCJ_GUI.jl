@@ -205,3 +205,17 @@ function update!(dataseries, BCJ::BCJ_metal_calibrate, incnum, istate, Plot_ISVs
     end
     return nothing
 end
+
+function reset_sliders!(params, sg_sliders, C_0, nsliders)
+    # for (i, c, sgc) in zip(range(1, nsliders), C_0, sg_sliders)
+    #     params[][BCJ.constant_string(i)] = to_value(c);         notify(params)
+    #     set_close_to!(sgc.sliders[1], c)
+    #     sgc.sliders[1].value[] = to_value(c);                   notify(sgc.sliders[1].value)
+    # end
+    asyncmap((i, c, sgc)->begin # attempt multi-threading
+            params[][constant_string(i)] = to_value(c);         notify(params)
+            set_close_to!(sgc.sliders[1], c)
+            sgc.sliders[1].value[] = to_value(c);               notify(sgc.sliders[1].value)
+        end, range(1, nsliders), C_0, sg_sliders)
+    return nothing
+end
