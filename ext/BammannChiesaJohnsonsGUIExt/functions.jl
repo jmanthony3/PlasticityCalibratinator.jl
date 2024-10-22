@@ -1,9 +1,3 @@
-using CSV
-using DataFrames
-using Distributed
-using GLMakie
-using LaTeXStrings
-
 struct BCJ_metal_calibrate
     nsets       ::Int64
     test_data   ::Dict{String, Vector}
