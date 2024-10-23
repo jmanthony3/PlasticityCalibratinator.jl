@@ -1,14 +1,17 @@
-```@meta
-CurrentModule = BCJCalibratinator
-```
-
 # BCJCalibratinator
-
 Documentation for [BCJCalibratinator](https://github.com/jmanthony3/BCJCalibratinator.jl).
 
-```@index
+```@contents
+Modules = [BCJCalibratinator]
+Pages   = [
+]
+Depth   = 1
 ```
 
-```@autodocs
-Modules = [BCJCalibratinator]
+## Index
+```@index
+Modules = [
+    BCJCalibratinator]
+Pages   = [
+]
 ```

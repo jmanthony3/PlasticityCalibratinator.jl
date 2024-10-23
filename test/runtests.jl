@@ -1,6 +1,6 @@
 using BCJCalibratinator
 using Test
 
-@testset "BCJCalibratinator.jl" begin
+@testset verbose=true "BCJCalibratinator.jl" begin
     # Write your tests here.
 end
