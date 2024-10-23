@@ -10,6 +10,7 @@ using NativeFileDialog
 using Optim
 
 import BammannChiesaJohnsons as BCJ
+import BCJCalibratinator as BCJinator
 
 
 set_theme!(theme_latexfonts())
@@ -102,12 +103,12 @@ end
 files       = Observable(files)     # trying to switch over to observable
 joinfiles(fs) = join([fs...], "\n")
 input_files = lift(joinfiles, files)
-bcj         = Observable(BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate[], params[], MPa, ISV_Model[]))
+bcj         = Observable(BCJinator.BCJ_metal_calibrate_init(files[], incnum[], istate[], params[], MPa, ISV_Model[]))
 # lines[1] = data
 # lines[2] = model (to be updated)
 # lines[3] = alpha model (to be updated)
 # lines[4] = kappa model (to be updated)
-dataseries  = Observable(BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs[]))
+dataseries  = Observable(BCJinator.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs[]))
 
 
 
@@ -281,10 +282,10 @@ ax_isv = Axis(h[1, 1],
     ylabel="True Stress (Pa)")
 xlims!(ax, (0., nothing)); ylims!(ax, (min_stress, max_stress))
 # xlims!(ax_isv, (0., nothing)); ylims!(ax_isv, (min_stress, max_stress))
-BCJ.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
+BCJinator.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
 leg = Observable(axislegend(ax, position=:rb))
 leg_isv = Observable(axislegend(ax_isv, position=:lt))
-BCJ.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], ISV_Model[])
+BCJinator.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], ISV_Model[])
 
 #### buttons below plot
 buttons_grid = GridLayout(grid_plot[ 10,  :], 1, 5)
@@ -345,7 +346,7 @@ end
 on(buttons_updateinputs.clicks) do click
     empty!(ax); !isnothing(leg[]) ? delete!(leg[]) : nothing;   notify(leg)
     empty!(ax_isv); !isnothing(leg_isv[]) ? delete!(leg_isv[]) : nothing; notify(leg_isv)
-    BCJ.reset_sliders!(params, sg_sliders, C_0, nsliders)
+    BCJinator.reset_sliders!(params, sg_sliders, C_0, nsliders)
     Plot_ISVs[] = begin
         [Symbol(s[2:end]) for s in split(Plot_ISVs_textbox.displayed_string[], r"(,|;|\s)")]
     end;                                                        notify(Plot_ISVs)
@@ -359,9 +360,9 @@ on(buttons_updateinputs.clicks) do click
             error("'Tension/Compression' or 'Torsion' needs to be toggled on.")
         end
     end;                                                        notify(istate)
-    bcj[] = BCJ.BCJ_metal_calibrate_init(files[], incnum[], istate[], params[], MPa, ISV_Model[]); notify(bcj)
-    dataseries[] = BCJ.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs[]); notify(dataseries)
-    BCJ.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
+    bcj[] = BCJinator.BCJ_metal_calibrate_init(files[], incnum[], istate[], params[], MPa, ISV_Model[]); notify(bcj)
+    dataseries[] = BCJinator.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs[]); notify(dataseries)
+    BCJinator.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
     !isnothing(leg) ? (leg[] = axislegend(ax, position=:rb)) : nothing; notify(leg)
     !isnothing(leg_isv) ? (leg_isv[] = axislegend(ax_isv, position=:lt)) : nothing; notify(leg_isv)
 end
@@ -389,8 +390,8 @@ end
 for (i, sgs) in enumerate(sg_sliders)
     on(only(sgs.sliders).value) do val
         # redefine params with new slider values
-        params[][BCJ.constant_string(i)] = to_value(val);       notify(params)
-        BCJ.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], ISV_Model[])
+        params[][BCJinator.constant_string(i)] = to_value(val);       notify(params)
+        BCJinator.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], ISV_Model[])
     end
 end
 
@@ -445,7 +446,7 @@ on(buttons_calibrate.clicks) do click
         #     end
         #     r = params[]
         #     for (i, j) in enumerate(constantstocalibrate_indices)
-        #         r[BCJ.constant_string(j)] = p[i]
+        #         r[BCJinator.constant_string(j)] = p[i]
         #     end
         #     ret_x = Float64[]
         #     ret_y = Float64[] # zeros(Float64, length(x))
@@ -485,11 +486,11 @@ on(buttons_calibrate.clicks) do click
         function fnc2min(p)
             # r = params[]
             # for (i, j) in enumerate(constantstocalibrate_indices)
-            #     r[BCJ.constant_string(j)] = p[i]
+            #     r[BCJinator.constant_string(j)] = p[i]
             # end
             # err = 0.
             # for i in range(1, bcj[].nsets)
-            #     err += sum((bcj[].test_data["Data_S"][i] - BCJ.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
+            #     err += sum((bcj[].test_data["Data_S"][i] - BCJinator.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
             #         incnum[], istate[], r, i).S) .^ 2.)
             # end
             # return err
@@ -499,7 +500,7 @@ on(buttons_calibrate.clicks) do click
             end
             r = params[]
             for (i, j) in enumerate(constantstocalibrate_indices)
-                r[BCJ.constant_string(j)] = p[i]
+                r[BCJinator.constant_string(j)] = p[i]
             end
             ret_x = Float64[]
             ret_y = Float64[] # zeros(Float64, length(x))
@@ -524,7 +525,7 @@ on(buttons_calibrate.clicks) do click
                 append!(ret_x, bcj_current.ϵₜₒₜₐₗ[kS, :][idx])
                 append!(ret_y, bcj[].test_data["Data_S"][i] - bcj_current.S[kS, :][idx])
                 # err += sum((bcj[].test_data["Data_S"][i] - bcj_current.S[kS, :][idx]) .^ 2.)
-                # # err += sum((bcj[].test_data["Data_S"][i] - BCJ.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
+                # # err += sum((bcj[].test_data["Data_S"][i] - BCJinator.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
                 # #     incnum[], istate[], r, i).S[idx]) .^ 2.)
             end
             return ret_y
@@ -533,11 +534,11 @@ on(buttons_calibrate.clicks) do click
         function fnc2min_grad(p)
             # r = params[]
             # for (i, j) in enumerate(constantstocalibrate_indices)
-            #     r[BCJ.constant_string(j)] = p[i]
+            #     r[BCJinator.constant_string(j)] = p[i]
             # end
             # err = 0.
             # for i in range(1, bcj[].nsets)
-            #     err += sum((bcj[].test_data["Data_S"][i] - BCJ.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
+            #     err += sum((bcj[].test_data["Data_S"][i] - BCJinator.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
             #         incnum[], istate[], r, i).S) .^ 2.)
             # end
             # return err
@@ -547,7 +548,7 @@ on(buttons_calibrate.clicks) do click
             end
             r = params[]
             for (i, j) in enumerate(constantstocalibrate_indices)
-                r[BCJ.constant_string(j)] = p[i]
+                r[BCJinator.constant_string(j)] = p[i]
             end
             stress_rate = Float64[]
             for i in range(1, bcj[].nsets)
@@ -578,7 +579,7 @@ on(buttons_calibrate.clicks) do click
         println((p, q))
         r = params[]
         for (i, j) in enumerate(constantstocalibrate_indices)
-            r[BCJ.constant_string(j)] = max(0., q[i])
+            r[BCJinator.constant_string(j)] = max(0., q[i])
         end
         for i in calibratingtoggles_indices
             toggles[i].active[] = false;                            notify(toggles[i].active)
@@ -659,16 +660,16 @@ end
 ### reset sliders/parameters
 on(buttons_resetparams.clicks) do click
     # # for (i, c, sgc) in zip(range(1, nsliders), C_0, sg_sliders)
-    # #     params[][BCJ.constant_string(i)] = to_value(c);         notify(params)
+    # #     params[][BCJinator.constant_string(i)] = to_value(c);         notify(params)
     # #     set_close_to!(sgc.sliders[1], c)
     # #     sgc.sliders[1].value[] = to_value(c);                   notify(sgc.sliders[1].value)
     # # end
     # asyncmap((i, c, sgc)->begin # attempt multi-threading
-    #         params[][BCJ.constant_string(i)] = to_value(c);     notify(params)
+    #         params[][BCJinator.constant_string(i)] = to_value(c);     notify(params)
     #         set_close_to!(sgc.sliders[1], c)
     #         sgc.sliders[1].value[] = to_value(c);               notify(sgc.sliders[1].value)
     #     end, range(1, nsliders), C_0, sg_sliders)
-    BCJ.reset_sliders!(params, sg_sliders, C_0, nsliders)
+    BCJinator.reset_sliders!(params, sg_sliders, C_0, nsliders)
 end
 ### show isv plot
 on(buttons_showisvs.clicks) do click
@@ -681,7 +682,7 @@ on(buttons_savecurves.clicks) do click
     # "Save new props file"
     propsfile_new = save_file(; filterlist="csv")
     df = DataFrame(
-        "Comment" => [BCJ.constant_string.(range(1, nsliders))..., "Bulk Mod", "Shear Mod"],
+        "Comment" => [BCJinator.constant_string.(range(1, nsliders))..., "Bulk Mod", "Shear Mod"],
         "For Calibration with vumat"    => [[only(sgc.sliders).value[] for sgc in sg_sliders]..., bulk_mod, shear_mod]
     )
     CSV.write(propsfile_new, df)
