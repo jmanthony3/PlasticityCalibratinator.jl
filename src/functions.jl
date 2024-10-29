@@ -218,6 +218,6 @@ function reset_sliders!(params, sg_sliders, C_0, nsliders)
             params[][constant_string(i)] = to_value(c);         notify(params)
             set_close_to!(sgc.sliders[1], c)
             sgc.sliders[1].value[] = to_value(c);               notify(sgc.sliders[1].value)
-        end, range(1, nsliders), C_0, sg_sliders)
+        end, range(1, nsliders[]), C_0[], sg_sliders[])
     return nothing
 end

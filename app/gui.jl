@@ -22,8 +22,8 @@ incnum      = Observable(200)
 istate      = Observable(1)      #1 = tension, 2 = torsion
 Ask_Files   = true
 Material    = "4340"
-ISV_Model = Observable(BCJ.DK)
-Plot_ISVs   = Observable([:alpha, :kappa])
+BCJMetal    = Observable(BCJ.DK)
+Plot_ISVs   = Observable([BCJ.KinematicHardening{BCJMetal[]}, BCJ.IsotropicHardening{BCJMetal[]}])
 MPa         = 1e6           # Unit conversion from MPa to Pa from data
 min_stress  = 0.
 max_stress  = 3000 * MPa
@@ -33,36 +33,9 @@ if Material == "4340"
 end
 
 ## sliders
-nsliders = 20       # Index with "s in range(1,nsliders):" so s corresponds with C#
-C_amp   = Vector{Float64}(undef, nsliders)
-C_0     = Vector{Float64}(undef, nsliders)
-Slider_C= Vector{Float64}(undef, nsliders)
-
-### amplitude range on sliders
-# 
-C_amp[1]    = 300.0
-C_amp[2]    = 300.0
-C_amp[3]    = 100.0
-C_amp[4]    = 300.1
-C_amp[5]    = 0.5
-C_amp[6]    = 300.0
-# 
-C_amp[7]    = 0.0001
-C_amp[8]    = 300.0
-C_amp[9]    = 600.0
-C_amp[10]   = 10.0
-C_amp[11]   = 3.0
-C_amp[12]   = 300.0
-# 
-C_amp[13]   = 1.0
-C_amp[14]   = 300.0
-C_amp[15]   = 600.0
-C_amp[16]   = 10.0
-C_amp[17]   = 3.0
-C_amp[18]   = 300.0
-# 
-C_amp[19]   = 10.0
-C_amp[20]   = 300.0
+nsliders    = Observable(0)       # Index with "s in range(1,nsliders):" so s corresponds with C#
+nequations  = Observable(10)
+C_0         = @lift Vector{Float64}(undef, $nsliders)
 
 
 # material properties
@@ -71,39 +44,25 @@ propsfile   = Observable(propsfile) # trying to switch over to observable
 params      = @lift begin
     df          = CSV.read($propsfile, DataFrame; header=true, delim=',', types=[String, Float64])
     rowsofconstants = findall(occursin.(r"C\d{2}", df[!, "Comment"]))
-    C_0[rowsofconstants] .= df[!, "For Calibration with vumat"][rowsofconstants]
+    nsliders[] = length(rowsofconstants); notify(nsliders)
+    C_0[] = Vector{Float64}(undef, nsliders[]); notify(C_0)
+    C_0[][rowsofconstants] .= df[!, "For Calibration with vumat"][rowsofconstants]; notify(C_0)
     bulk_mod    = df[!, "For Calibration with vumat"][findfirst(occursin("Bulk Mod"), df[!, "Comment"])]
     shear_mod   = df[!, "For Calibration with vumat"][findfirst(occursin("Shear Mod"), df[!, "Comment"])]
-    Dict( # collect as dictionary
-        "C01"       => C_0[ 1],
-        "C02"       => C_0[ 2],
-        "C03"       => C_0[ 3],
-        "C04"       => C_0[ 4],
-        "C05"       => C_0[ 5],
-        "C06"       => C_0[ 6],
-        "C07"       => C_0[ 7],
-        "C08"       => C_0[ 8],
-        "C09"       => C_0[ 9],
-        "C10"       => C_0[10],
-        "C11"       => C_0[11],
-        "C12"       => C_0[12],
-        "C13"       => C_0[13],
-        "C14"       => C_0[14],
-        "C15"       => C_0[15],
-        "C16"       => C_0[16],
-        "C17"       => C_0[17],
-        "C18"       => C_0[18],
-        "C19"       => C_0[19],
-        "C20"       => C_0[20],
+    dict = Dict( # collect as dictionary
         "bulk_mod"  => bulk_mod,
         "shear_mod" => shear_mod)
+    for (i, c) in enumerate(C_0[])
+        dict[BCJinator.constant_string(i)] = c
+    end
+    dict
 end
 # ------------------------------------------------
 # store stress-strain data and corresponding test conditions (temp and strain rate)
 files       = Observable(files)     # trying to switch over to observable
 joinfiles(fs) = join([fs...], "\n")
 input_files = lift(joinfiles, files)
-bcj         = Observable(BCJinator.bcjmetalcalibration_init(files[], incnum[], istate[], params[], MPa, ISV_Model[]))
+bcj         = Observable(BCJinator.bcjmetalcalibration_init(files[], incnum[], istate[], params[], MPa, BCJMetal[]))
 # lines[1] = data
 # lines[2] = model (to be updated)
 # lines[3] = alpha model (to be updated)
@@ -173,17 +132,25 @@ ba = GridLayout(b[ 1,  1], 3, 1)
 baa = GridLayout(ba[1, 1], 1, 1)
 modelselection_title_label  = Label(baa[ 1,  1], "Model Selection")
 modelselection_menu         = Menu(baa[ 1,  2], options=zip(["Bammann1990Modeling", "DK"], [BCJ.Bammann1990Modeling, BCJ.DK]), default="DK")
-bab = GridLayout(ba[2, 1], 5, 1)
-plasticstrainrate_text      = Observable(L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ (1 - \phi)V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'")
-kinematichardening_text     = Observable(L"\dot{\mathbf{\alpha}} = h(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}")
-isotropichardening_text     = Observable(L"\dot{\kappa} = H(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}")
-flowrule_text               = Observable(L"F = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}|, \theta)")
-initialyieldstressbeta_text = Observable(L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)")
-plasticstrainrate_label     = Label(bab[ 1,  1], plasticstrainrate_text; halign=:left)
-kinematichardening_label    = Label(bab[ 2,  1], kinematichardening_text; halign=:left)
-isotropichardening_label    = Label(bab[ 3,  1], isotropichardening_text; halign=:left)
-flowrule_label              = Label(bab[ 4,  1], flowrule_text; halign=:left)
-initialyieldstressbeta_label= Label(bab[ 5,  1], initialyieldstressbeta_text; halign=:left)
+characteristic_equations = Observable([
+    # plasticstrainrate
+    L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ (1 - \phi)V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'",
+    # kinematic hardening
+    L"\dot{\mathbf{\alpha}} = h(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}",
+    # isotropic hardening
+    L"\dot{\kappa} = H(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}",
+    # flow rule
+    L"F = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}|, \theta)",
+    # initial yield stress beta
+    L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)"
+])
+bab = @lift GridLayout(ba[2, 1], length($characteristic_equations), 1)
+chareqs_labels = Observable([
+    Label(bab[][ 1,  1], characteristic_equations[][1]; halign=:left)
+    Label(bab[][ 2,  1], characteristic_equations[][2]; halign=:left)
+    Label(bab[][ 3,  1], characteristic_equations[][3]; halign=:left)
+    Label(bab[][ 4,  1], characteristic_equations[][4]; halign=:left)
+    Label(bab[][ 5,  1], characteristic_equations[][5]; halign=:left)])
 # grid_sliders    = GridLayout(ba[ 2,  1], 10, 3)
 showsliders_button = Button(ba[3, 1], label="Show sliders")
 grid_plot       = GridLayout(b[ 1,  2], 10, 9)
@@ -198,94 +165,120 @@ grid_plot       = GridLayout(b[ 1,  2], 10, 9)
 rowsize!(b, 1, Relative(0.8))
 
 #### sliders
-grid_sliders    = GridLayout(g[1, 1], 10, 3)
-# add toggles for which to calibrate
-toggle_V    = Toggle(grid_sliders[ 1,  1], active=false)
-toggle_Y    = Toggle(grid_sliders[ 2,  1], active=false)
-toggle_f    = Toggle(grid_sliders[ 3,  1], active=false)
-toggle_rd   = Toggle(grid_sliders[ 4,  1], active=false)
-toggle_h    = Toggle(grid_sliders[ 5,  1], active=false)
-toggle_rs   = Toggle(grid_sliders[ 6,  1], active=false)
-toggle_Rd   = Toggle(grid_sliders[ 7,  1], active=false)
-toggle_H    = Toggle(grid_sliders[ 8,  1], active=false)
-toggle_Rs   = Toggle(grid_sliders[ 9,  1], active=false)
-toggle_Yadj = Toggle(grid_sliders[10,  1], active=false)
-toggles     = [ # collect toggles
-    toggle_V,       # V
-    toggle_Y,       # Y
-    toggle_f,       # f
-    toggle_rd,      # rd
-    toggle_h,       # h
-    toggle_rs,      # rs
-    toggle_Rd,      # Rd
-    toggle_H,       # H
-    toggle_Rs,      # Rs
-    toggle_Yadj     # Yadj
-]
 # label each slider with equation
-textbox_V_text      = Observable(L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)")
-textbox_Y_text      = Observable(L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)")
-textbox_f_text      = Observable(L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)")
-textbox_rd_text     = Observable(L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)")
-textbox_h_text      = Observable(L"h = C_{ 9} - C_{10}\theta")
-textbox_rs_text     = Observable(L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)")
-textbox_Rd_text     = Observable(L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)")
-textbox_H_text      = Observable(L"H = C_{15} - C_{16}\theta")
-textbox_Rs_text     = Observable(L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)")
-textbox_Yadj_text   = Observable(L"Y_{adj}")
-textbox_V   = Label(grid_sliders[ 1,  2], textbox_V_text)
-textbox_Y   = Label(grid_sliders[ 2,  2], textbox_Y_text)
-textbox_f   = Label(grid_sliders[ 3,  2], textbox_f_text)
-textbox_rd  = Label(grid_sliders[ 4,  2], textbox_rd_text)
-textbox_h   = Label(grid_sliders[ 5,  2], textbox_h_text)
-textbox_rs  = Label(grid_sliders[ 6,  2], textbox_rs_text)
-textbox_Rd  = Label(grid_sliders[ 7,  2], textbox_Rd_text)
-textbox_H   = Label(grid_sliders[ 8,  2], textbox_H_text)
-textbox_Rs  = Label(grid_sliders[ 9,  2], textbox_Rs_text)
-textbox_Yadj= Label(grid_sliders[10,  2], textbox_Yadj_text)
+dependence_equations = Observable([
+    L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)",       # V
+    L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)",       # Y
+    L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)",       # f
+    L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)",   # rd
+    L"h = C_{ 9} - C_{10}\theta",                       # h
+    L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)",   # rs
+    L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)",   # Rd
+    L"H = C_{15} - C_{16}\theta",                       # H
+    L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)",   # Rs
+    L"Y_{adj}",                                         # Yadj
+])
+grid_sliders = @lift GridLayout(g[1, 1], length($dependence_equations), 3)
+# add toggles for which to calibrate
+toggles     = Observable([ # collect toggles
+    Toggle(grid_sliders[][ 1,  1], active=false), # V
+    Toggle(grid_sliders[][ 2,  1], active=false), # Y
+    Toggle(grid_sliders[][ 3,  1], active=false), # f
+    Toggle(grid_sliders[][ 4,  1], active=false), # rd
+    Toggle(grid_sliders[][ 5,  1], active=false), # h
+    Toggle(grid_sliders[][ 6,  1], active=false), # rs
+    Toggle(grid_sliders[][ 7,  1], active=false), # Rd
+    Toggle(grid_sliders[][ 8,  1], active=false), # H
+    Toggle(grid_sliders[][ 9,  1], active=false), # Rs
+    Toggle(grid_sliders[][10,  1], active=false), # Yadj
+])
+depeqs_labels = Observable([
+    Label(grid_sliders[][ 1,  2], dependence_equations[][ 1]; halign=:left)
+    Label(grid_sliders[][ 2,  2], dependence_equations[][ 2]; halign=:left)
+    Label(grid_sliders[][ 3,  2], dependence_equations[][ 3]; halign=:left)
+    Label(grid_sliders[][ 4,  2], dependence_equations[][ 4]; halign=:left)
+    Label(grid_sliders[][ 5,  2], dependence_equations[][ 5]; halign=:left)
+    Label(grid_sliders[][ 6,  2], dependence_equations[][ 6]; halign=:left)
+    Label(grid_sliders[][ 7,  2], dependence_equations[][ 7]; halign=:left)
+    Label(grid_sliders[][ 8,  2], dependence_equations[][ 8]; halign=:left)
+    Label(grid_sliders[][ 9,  2], dependence_equations[][ 9]; halign=:left)
+    Label(grid_sliders[][10,  2], dependence_equations[][10]; halign=:left)
+])
 # make a slider for each constant
-# V
-sg_C01      = SliderGrid(grid_sliders[ 1,  3][ 1,  1], (label=L"C_{ 1}", range=range(0., 5C_0[ 1]; length=1_000), format="{:.3e}", startvalue=C_0[ 1])) # , width=0.4w[]))
-sg_C02      = SliderGrid(grid_sliders[ 1,  3][ 2,  1], (label=L"C_{ 2}", range=range(0., 5C_0[ 2]; length=1_000), format="{:.3e}", startvalue=C_0[ 2])) # , width=0.4w[]))
-# Y
-sg_C03      = SliderGrid(grid_sliders[ 2,  3][ 1,  1], (label=L"C_{ 3}", range=range(0., 5C_0[ 3]; length=1_000), format="{:.3e}", startvalue=C_0[ 3])) # , width=0.4w[]))
-sg_C04      = SliderGrid(grid_sliders[ 2,  3][ 2,  1], (label=L"C_{ 4}", range=range(0., 5C_0[ 4]; length=1_000), format="{:.3e}", startvalue=C_0[ 4])) # , width=0.4w[]))
-# f
-sg_C05      = SliderGrid(grid_sliders[ 3,  3][ 1,  1], (label=L"C_{ 5}", range=range(0., 5C_0[ 5]; length=1_000), format="{:.3e}", startvalue=C_0[ 5])) # , width=0.4w[]))
-sg_C06      = SliderGrid(grid_sliders[ 3,  3][ 2,  1], (label=L"C_{ 6}", range=range(0., 5C_0[ 6]; length=1_000), format="{:.3e}", startvalue=C_0[ 6])) # , width=0.4w[]))
-# rd
-sg_C07      = SliderGrid(grid_sliders[ 4,  3][ 1,  1], (label=L"C_{ 7}", range=range(0., 5C_0[ 7]; length=1_000), format="{:.3e}", startvalue=C_0[ 7])) # , width=0.4w[]))
-sg_C08      = SliderGrid(grid_sliders[ 4,  3][ 2,  1], (label=L"C_{ 8}", range=range(0., 5C_0[ 8]; length=1_000), format="{:.3e}", startvalue=C_0[ 8])) # , width=0.4w[]))
-# h
-sg_C09      = SliderGrid(grid_sliders[ 5,  3][ 1,  1], (label=L"C_{ 9}", range=range(0., 5C_0[ 9]; length=1_000), format="{:.3e}", startvalue=C_0[ 9])) # , width=0.4w[]))
-sg_C10      = SliderGrid(grid_sliders[ 5,  3][ 2,  1], (label=L"C_{10}", range=range(0., 5C_0[10]; length=1_000), format="{:.3e}", startvalue=C_0[10])) # , width=0.4w[]))
-# rs
-sg_C11      = SliderGrid(grid_sliders[ 6,  3][ 1,  1], (label=L"C_{11}", range=range(0., 5C_0[11]; length=1_000), format="{:.3e}", startvalue=C_0[11])) # , width=0.4w[]))
-sg_C12      = SliderGrid(grid_sliders[ 6,  3][ 2,  1], (label=L"C_{12}", range=range(0., 5C_0[12]; length=1_000), format="{:.3e}", startvalue=C_0[12])) # , width=0.4w[]))
-# Rd
-sg_C13      = SliderGrid(grid_sliders[ 7,  3][ 1,  1], (label=L"C_{13}", range=range(0., 5C_0[13]; length=1_000), format="{:.3e}", startvalue=C_0[13])) # , width=0.4w[]))
-sg_C14      = SliderGrid(grid_sliders[ 7,  3][ 2,  1], (label=L"C_{14}", range=range(0., 5C_0[14]; length=1_000), format="{:.3e}", startvalue=C_0[14])) # , width=0.4w[]))
-# H
-sg_C15      = SliderGrid(grid_sliders[ 8,  3][ 1,  1], (label=L"C_{15}", range=range(0., 5C_0[15]; length=1_000), format="{:.3e}", startvalue=C_0[15])) # , width=0.4w[]))
-sg_C16      = SliderGrid(grid_sliders[ 8,  3][ 2,  1], (label=L"C_{16}", range=range(0., 5C_0[16]; length=1_000), format="{:.3e}", startvalue=C_0[16])) # , width=0.4w[]))
-# Rs
-sg_C17      = SliderGrid(grid_sliders[ 9,  3][ 1,  1], (label=L"C_{17}", range=range(0., 5C_0[17]; length=1_000), format="{:.3e}", startvalue=C_0[17])) # , width=0.4w[]))
-sg_C18      = SliderGrid(grid_sliders[ 9,  3][ 2,  1], (label=L"C_{18}", range=range(0., 5C_0[18]; length=1_000), format="{:.3e}", startvalue=C_0[18])) # , width=0.4w[]))
-# Yadj
-sg_C19      = SliderGrid(grid_sliders[10,  3][ 1,  1], (label=L"C_{19}", range=range(0., 5C_0[19]; length=1_000), format="{:.3e}", startvalue=C_0[19])) # , width=0.4w[]))
-sg_C20      = SliderGrid(grid_sliders[10,  3][ 2,  1], (label=L"C_{20}", range=range(0., 5C_0[20]; length=1_000), format="{:.3e}", startvalue=C_0[20])) # , width=0.4w[]))
-sg_sliders  = [ # collect sliders
-    sg_C01, sg_C02, # V
-    sg_C03, sg_C04, # Y
-    sg_C05, sg_C06, # f
-    sg_C07, sg_C08, # rd
-    sg_C09, sg_C10, # h
-    sg_C11, sg_C12, # rs
-    sg_C13, sg_C14, # Rd
-    sg_C15, sg_C16, # H
-    sg_C17, sg_C18, # Rs
-    sg_C19, sg_C20  # Yadj
-]
+# # V
+# sg_C01      = SliderGrid(grid_sliders[][ 1,  3][ 1,  1], (label=L"C_{ 1}", range=range(0., 5C_0[][ 1]; length=1_000), format="{:.3e}", startvalue=C_0[][ 1])) # , width=0.4w[]))
+# sg_C02      = SliderGrid(grid_sliders[][ 1,  3][ 2,  1], (label=L"C_{ 2}", range=range(0., 5C_0[][ 2]; length=1_000), format="{:.3e}", startvalue=C_0[][ 2])) # , width=0.4w[]))
+# # Y
+# sg_C03      = SliderGrid(grid_sliders[][ 2,  3][ 1,  1], (label=L"C_{ 3}", range=range(0., 5C_0[][ 3]; length=1_000), format="{:.3e}", startvalue=C_0[][ 3])) # , width=0.4w[]))
+# sg_C04      = SliderGrid(grid_sliders[][ 2,  3][ 2,  1], (label=L"C_{ 4}", range=range(0., 5C_0[][ 4]; length=1_000), format="{:.3e}", startvalue=C_0[][ 4])) # , width=0.4w[]))
+# # f
+# sg_C05      = SliderGrid(grid_sliders[][ 3,  3][ 1,  1], (label=L"C_{ 5}", range=range(0., 5C_0[][ 5]; length=1_000), format="{:.3e}", startvalue=C_0[][ 5])) # , width=0.4w[]))
+# sg_C06      = SliderGrid(grid_sliders[][ 3,  3][ 2,  1], (label=L"C_{ 6}", range=range(0., 5C_0[][ 6]; length=1_000), format="{:.3e}", startvalue=C_0[][ 6])) # , width=0.4w[]))
+# # rd
+# sg_C07      = SliderGrid(grid_sliders[][ 4,  3][ 1,  1], (label=L"C_{ 7}", range=range(0., 5C_0[][ 7]; length=1_000), format="{:.3e}", startvalue=C_0[][ 7])) # , width=0.4w[]))
+# sg_C08      = SliderGrid(grid_sliders[][ 4,  3][ 2,  1], (label=L"C_{ 8}", range=range(0., 5C_0[][ 8]; length=1_000), format="{:.3e}", startvalue=C_0[][ 8])) # , width=0.4w[]))
+# # h
+# sg_C09      = SliderGrid(grid_sliders[][ 5,  3][ 1,  1], (label=L"C_{ 9}", range=range(0., 5C_0[][ 9]; length=1_000), format="{:.3e}", startvalue=C_0[][ 9])) # , width=0.4w[]))
+# sg_C10      = SliderGrid(grid_sliders[][ 5,  3][ 2,  1], (label=L"C_{10}", range=range(0., 5C_0[][10]; length=1_000), format="{:.3e}", startvalue=C_0[][10])) # , width=0.4w[]))
+# # rs
+# sg_C11      = SliderGrid(grid_sliders[][ 6,  3][ 1,  1], (label=L"C_{11}", range=range(0., 5C_0[][11]; length=1_000), format="{:.3e}", startvalue=C_0[][11])) # , width=0.4w[]))
+# sg_C12      = SliderGrid(grid_sliders[][ 6,  3][ 2,  1], (label=L"C_{12}", range=range(0., 5C_0[][12]; length=1_000), format="{:.3e}", startvalue=C_0[][12])) # , width=0.4w[]))
+# # Rd
+# sg_C13      = SliderGrid(grid_sliders[][ 7,  3][ 1,  1], (label=L"C_{13}", range=range(0., 5C_0[][13]; length=1_000), format="{:.3e}", startvalue=C_0[][13])) # , width=0.4w[]))
+# sg_C14      = SliderGrid(grid_sliders[][ 7,  3][ 2,  1], (label=L"C_{14}", range=range(0., 5C_0[][14]; length=1_000), format="{:.3e}", startvalue=C_0[][14])) # , width=0.4w[]))
+# # H
+# sg_C15      = SliderGrid(grid_sliders[][ 8,  3][ 1,  1], (label=L"C_{15}", range=range(0., 5C_0[][15]; length=1_000), format="{:.3e}", startvalue=C_0[][15])) # , width=0.4w[]))
+# sg_C16      = SliderGrid(grid_sliders[][ 8,  3][ 2,  1], (label=L"C_{16}", range=range(0., 5C_0[][16]; length=1_000), format="{:.3e}", startvalue=C_0[][16])) # , width=0.4w[]))
+# # Rs
+# sg_C17      = SliderGrid(grid_sliders[][ 9,  3][ 1,  1], (label=L"C_{17}", range=range(0., 5C_0[][17]; length=1_000), format="{:.3e}", startvalue=C_0[][17])) # , width=0.4w[]))
+# sg_C18      = SliderGrid(grid_sliders[][ 9,  3][ 2,  1], (label=L"C_{18}", range=range(0., 5C_0[][18]; length=1_000), format="{:.3e}", startvalue=C_0[][18])) # , width=0.4w[]))
+# # Yadj
+# sg_C19      = SliderGrid(grid_sliders[][10,  3][ 1,  1], (label=L"C_{19}", range=range(0., 5C_0[][19]; length=1_000), format="{:.3e}", startvalue=C_0[][19])) # , width=0.4w[]))
+# sg_C20      = SliderGrid(grid_sliders[][10,  3][ 2,  1], (label=L"C_{20}", range=range(0., 5C_0[][20]; length=1_000), format="{:.3e}", startvalue=C_0[][20])) # , width=0.4w[]))
+# sg_sliders  = [ # collect sliders
+#     sg_C01, sg_C02, # V
+#     sg_C03, sg_C04, # Y
+#     sg_C05, sg_C06, # f
+#     sg_C07, sg_C08, # rd
+#     sg_C09, sg_C10, # h
+#     sg_C11, sg_C12, # rs
+#     sg_C13, sg_C14, # Rd
+#     sg_C15, sg_C16, # H
+#     sg_C17, sg_C18, # Rs
+#     sg_C19, sg_C20  # Yadj
+# ]
+sg_sliders = Observable([
+    # V
+    SliderGrid(grid_sliders[][ 1,  3][ 1,  1], (label=L"C_{ 1}", range=range(0., 5C_0[][ 1]; length=1_000), format="{:.3e}", startvalue=C_0[][ 1])), # , width=0.4w[]))
+    SliderGrid(grid_sliders[][ 1,  3][ 2,  1], (label=L"C_{ 2}", range=range(0., 5C_0[][ 2]; length=1_000), format="{:.3e}", startvalue=C_0[][ 2])), # , width=0.4w[]))
+    # Y
+    SliderGrid(grid_sliders[][ 2,  3][ 1,  1], (label=L"C_{ 3}", range=range(0., 5C_0[][ 3]; length=1_000), format="{:.3e}", startvalue=C_0[][ 3])), # , width=0.4w[]))
+    SliderGrid(grid_sliders[][ 2,  3][ 2,  1], (label=L"C_{ 4}", range=range(0., 5C_0[][ 4]; length=1_000), format="{:.3e}", startvalue=C_0[][ 4])), # , width=0.4w[]))
+    # f
+    SliderGrid(grid_sliders[][ 3,  3][ 1,  1], (label=L"C_{ 5}", range=range(0., 5C_0[][ 5]; length=1_000), format="{:.3e}", startvalue=C_0[][ 5])), # , width=0.4w[]))
+    SliderGrid(grid_sliders[][ 3,  3][ 2,  1], (label=L"C_{ 6}", range=range(0., 5C_0[][ 6]; length=1_000), format="{:.3e}", startvalue=C_0[][ 6])), # , width=0.4w[]))
+    # rd
+    SliderGrid(grid_sliders[][ 4,  3][ 1,  1], (label=L"C_{ 7}", range=range(0., 5C_0[][ 7]; length=1_000), format="{:.3e}", startvalue=C_0[][ 7])), # , width=0.4w[]))
+    SliderGrid(grid_sliders[][ 4,  3][ 2,  1], (label=L"C_{ 8}", range=range(0., 5C_0[][ 8]; length=1_000), format="{:.3e}", startvalue=C_0[][ 8])), # , width=0.4w[]))
+    # h
+    SliderGrid(grid_sliders[][ 5,  3][ 1,  1], (label=L"C_{ 9}", range=range(0., 5C_0[][ 9]; length=1_000), format="{:.3e}", startvalue=C_0[][ 9])), # , width=0.4w[]))
+    SliderGrid(grid_sliders[][ 5,  3][ 2,  1], (label=L"C_{10}", range=range(0., 5C_0[][10]; length=1_000), format="{:.3e}", startvalue=C_0[][10])), # , width=0.4w[]))
+    # rs
+    SliderGrid(grid_sliders[][ 6,  3][ 1,  1], (label=L"C_{11}", range=range(0., 5C_0[][11]; length=1_000), format="{:.3e}", startvalue=C_0[][11])), # , width=0.4w[]))
+    SliderGrid(grid_sliders[][ 6,  3][ 2,  1], (label=L"C_{12}", range=range(0., 5C_0[][12]; length=1_000), format="{:.3e}", startvalue=C_0[][12])), # , width=0.4w[]))
+    # Rd
+    SliderGrid(grid_sliders[][ 7,  3][ 1,  1], (label=L"C_{13}", range=range(0., 5C_0[][13]; length=1_000), format="{:.3e}", startvalue=C_0[][13])), # , width=0.4w[]))
+    SliderGrid(grid_sliders[][ 7,  3][ 2,  1], (label=L"C_{14}", range=range(0., 5C_0[][14]; length=1_000), format="{:.3e}", startvalue=C_0[][14])), # , width=0.4w[]))
+    # H
+    SliderGrid(grid_sliders[][ 8,  3][ 1,  1], (label=L"C_{15}", range=range(0., 5C_0[][15]; length=1_000), format="{:.3e}", startvalue=C_0[][15])), # , width=0.4w[]))
+    SliderGrid(grid_sliders[][ 8,  3][ 2,  1], (label=L"C_{16}", range=range(0., 5C_0[][16]; length=1_000), format="{:.3e}", startvalue=C_0[][16])), # , width=0.4w[]))
+    # Rs
+    SliderGrid(grid_sliders[][ 9,  3][ 1,  1], (label=L"C_{17}", range=range(0., 5C_0[][17]; length=1_000), format="{:.3e}", startvalue=C_0[][17])), # , width=0.4w[]))
+    SliderGrid(grid_sliders[][ 9,  3][ 2,  1], (label=L"C_{18}", range=range(0., 5C_0[][18]; length=1_000), format="{:.3e}", startvalue=C_0[][18])), # , width=0.4w[]))
+    # Yadj
+    SliderGrid(grid_sliders[][10,  3][ 1,  1], (label=L"C_{19}", range=range(0., 5C_0[][19]; length=1_000), format="{:.3e}", startvalue=C_0[][19])), # , width=0.4w[]))
+    SliderGrid(grid_sliders[][10,  3][ 2,  1], (label=L"C_{20}", range=range(0., 5C_0[][20]; length=1_000), format="{:.3e}", startvalue=C_0[][20])), # , width=0.4w[]))
+])
 
 #### plot
 ax = Axis(grid_plot[ 1:  9,  1:  9],
@@ -300,7 +293,7 @@ xlims!(ax, (0., nothing)); ylims!(ax, (min_stress, max_stress))
 BCJinator.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
 leg = Observable(axislegend(ax, position=:rb))
 leg_isv = Observable(axislegend(ax_isv, position=:lt))
-BCJinator.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], ISV_Model[])
+BCJinator.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], BCJMetal[])
 
 #### buttons below plot
 buttons_grid = GridLayout(grid_plot[ 10,  :], 1, 5)
@@ -375,7 +368,7 @@ on(buttons_updateinputs.clicks) do click
             error("'Tension/Compression' or 'Torsion' needs to be toggled on.")
         end
     end;                                                        notify(istate)
-    bcj[] = BCJinator.bcjmetalcalibration_init(files[], incnum[], istate[], params[], MPa, ISV_Model[]); notify(bcj)
+    bcj[] = BCJinator.bcjmetalcalibration_init(files[], incnum[], istate[], params[], MPa, BCJMetal[]); notify(bcj)
     dataseries[] = BCJinator.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs[]); notify(dataseries)
     BCJinator.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
     !isnothing(leg) ? (leg[] = axislegend(ax, position=:rb)) : nothing; notify(leg)
@@ -389,56 +382,180 @@ end
 # end
 ### model selection (menu)
 on(modelselection_menu.selection) do s
-    ISV_Model[] = s; notify(ISV_Model)
+    BCJMetal[] = s; notify(BCJMetal)
     if s == BCJ.DK
-        plasticstrainrate_text[]        = L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ (1 - \phi)V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'"
-        kinematichardening_text[]       = L"\dot{\mathbf{\alpha}} = h(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}"
-        isotropichardening_text[]       = L"\dot{\kappa} = H(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}"
-        flowrule_text[]                 = L"F = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}|, \theta)"
-        initialyieldstressbeta_text[]   = L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)"
-        textbox_V_text[]    = L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)"
-        textbox_Y_text[]    = L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)"
-        textbox_f_text[]    = L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)"
-        textbox_rd_text[]   = L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)"
-        textbox_h_text[]    = L"h = C_{ 9} - C_{10}\theta"
-        textbox_rs_text[]   = L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)"
-        textbox_Rd_text[]   = L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)"
-        textbox_H_text[]    = L"H = C_{15} - C_{16}\theta"
-        textbox_Rs_text[]   = L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)"
-        textbox_Yadj_text[] = L"Y_{adj}"
+        nequations[] = 10; notify(nequations)
+        characteristic_equations[] = [
+            # plasticstrainrate
+            L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ (1 - \phi)V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'",
+            # kinematichardening
+            L"\dot{\mathbf{\alpha}} = h(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}",
+            # isotropichardening
+            L"\dot{\kappa} = H(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}",
+            # flowrule
+            L"F = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}|, \theta)",
+            # initialyieldstressbeta
+            L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)",
+        ]; notify(characteristic_equations)
+        for (lab, eq) in zip(chareqs_labels[], characteristic_equations[])
+            lab.text[] = eq
+        end; notify(chareqs_labels)
+        empty!(g); grid_sliders[] = GridLayout(g[1, 1], length(dependence_equations[]), 3); notify(grid_sliders)
+        dependence_equations[] = [
+            L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)", # textbox_V
+            L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)", # textbox_Y
+            L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)", # textbox_f
+            L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)", # textbox_rd
+            L"h = C_{ 9} - C_{10}\theta", # textbox_h
+            L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)", # textbox_rs
+            L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)", # textbox_Rd
+            L"H = C_{15} - C_{16}\theta", # textbox_H
+            L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)", # textbox_Rs
+            L"Y_{adj}", # textbox_Yadj
+        ]; notify(dependence_equations)
+        # for (lab, eq) in zip(depeqs_labels[], dependence_equations[])
+        #     lab.text[] = eq
+        # end; notify(depeqs_labels)
+        depeqs_labels[] = [
+            Label(grid_sliders[][ 1,  2], dependence_equations[][ 1]; halign=:left)
+            Label(grid_sliders[][ 2,  2], dependence_equations[][ 2]; halign=:left)
+            Label(grid_sliders[][ 3,  2], dependence_equations[][ 3]; halign=:left)
+            Label(grid_sliders[][ 4,  2], dependence_equations[][ 4]; halign=:left)
+            Label(grid_sliders[][ 5,  2], dependence_equations[][ 5]; halign=:left)
+            Label(grid_sliders[][ 6,  2], dependence_equations[][ 6]; halign=:left)
+            Label(grid_sliders[][ 7,  2], dependence_equations[][ 7]; halign=:left)
+            Label(grid_sliders[][ 8,  2], dependence_equations[][ 8]; halign=:left)
+            Label(grid_sliders[][ 9,  2], dependence_equations[][ 9]; halign=:left)
+            Label(grid_sliders[][10,  2], dependence_equations[][10]; halign=:left)
+        ]; notify(depeqs_labels)
+        toggles[]     = [ # collect toggles
+            Toggle(grid_sliders[][ 1,  1], active=false), # V
+            Toggle(grid_sliders[][ 2,  1], active=false), # Y
+            Toggle(grid_sliders[][ 3,  1], active=false), # f
+            Toggle(grid_sliders[][ 4,  1], active=false), # rd
+            Toggle(grid_sliders[][ 5,  1], active=false), # h
+            Toggle(grid_sliders[][ 6,  1], active=false), # rs
+            Toggle(grid_sliders[][ 7,  1], active=false), # Rd
+            Toggle(grid_sliders[][ 8,  1], active=false), # H
+            Toggle(grid_sliders[][ 9,  1], active=false), # Rs
+            Toggle(grid_sliders[][10,  1], active=false), # Yadj
+        ]; notify(toggles)
+        sg_sliders[] = [
+            # V
+            SliderGrid(grid_sliders[][ 1,  3][ 1,  1], (label=L"C_{ 1}", range=range(0., 5C_0[][ 1]; length=1_000), format="{:.3e}", startvalue=C_0[][ 1])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 1,  3][ 2,  1], (label=L"C_{ 2}", range=range(0., 5C_0[][ 2]; length=1_000), format="{:.3e}", startvalue=C_0[][ 2])), # , width=0.4w[]))
+            # Y
+            SliderGrid(grid_sliders[][ 2,  3][ 1,  1], (label=L"C_{ 3}", range=range(0., 5C_0[][ 3]; length=1_000), format="{:.3e}", startvalue=C_0[][ 3])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 2,  3][ 2,  1], (label=L"C_{ 4}", range=range(0., 5C_0[][ 4]; length=1_000), format="{:.3e}", startvalue=C_0[][ 4])), # , width=0.4w[]))
+            # f
+            SliderGrid(grid_sliders[][ 3,  3][ 1,  1], (label=L"C_{ 5}", range=range(0., 5C_0[][ 5]; length=1_000), format="{:.3e}", startvalue=C_0[][ 5])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 3,  3][ 2,  1], (label=L"C_{ 6}", range=range(0., 5C_0[][ 6]; length=1_000), format="{:.3e}", startvalue=C_0[][ 6])), # , width=0.4w[]))
+            # rd
+            SliderGrid(grid_sliders[][ 4,  3][ 1,  1], (label=L"C_{ 7}", range=range(0., 5C_0[][ 7]; length=1_000), format="{:.3e}", startvalue=C_0[][ 7])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 4,  3][ 2,  1], (label=L"C_{ 8}", range=range(0., 5C_0[][ 8]; length=1_000), format="{:.3e}", startvalue=C_0[][ 8])), # , width=0.4w[]))
+            # h
+            SliderGrid(grid_sliders[][ 5,  3][ 1,  1], (label=L"C_{ 9}", range=range(0., 5C_0[][ 9]; length=1_000), format="{:.3e}", startvalue=C_0[][ 9])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 5,  3][ 2,  1], (label=L"C_{10}", range=range(0., 5C_0[][10]; length=1_000), format="{:.3e}", startvalue=C_0[][10])), # , width=0.4w[]))
+            # rs
+            SliderGrid(grid_sliders[][ 6,  3][ 1,  1], (label=L"C_{11}", range=range(0., 5C_0[][11]; length=1_000), format="{:.3e}", startvalue=C_0[][11])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 6,  3][ 2,  1], (label=L"C_{12}", range=range(0., 5C_0[][12]; length=1_000), format="{:.3e}", startvalue=C_0[][12])), # , width=0.4w[]))
+            # Rd
+            SliderGrid(grid_sliders[][ 7,  3][ 1,  1], (label=L"C_{13}", range=range(0., 5C_0[][13]; length=1_000), format="{:.3e}", startvalue=C_0[][13])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 7,  3][ 2,  1], (label=L"C_{14}", range=range(0., 5C_0[][14]; length=1_000), format="{:.3e}", startvalue=C_0[][14])), # , width=0.4w[]))
+            # H
+            SliderGrid(grid_sliders[][ 8,  3][ 1,  1], (label=L"C_{15}", range=range(0., 5C_0[][15]; length=1_000), format="{:.3e}", startvalue=C_0[][15])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 8,  3][ 2,  1], (label=L"C_{16}", range=range(0., 5C_0[][16]; length=1_000), format="{:.3e}", startvalue=C_0[][16])), # , width=0.4w[]))
+            # Rs
+            SliderGrid(grid_sliders[][ 9,  3][ 1,  1], (label=L"C_{17}", range=range(0., 5C_0[][17]; length=1_000), format="{:.3e}", startvalue=C_0[][17])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 9,  3][ 2,  1], (label=L"C_{18}", range=range(0., 5C_0[][18]; length=1_000), format="{:.3e}", startvalue=C_0[][18])), # , width=0.4w[]))
+            # Yadj
+            SliderGrid(grid_sliders[][10,  3][ 1,  1], (label=L"C_{19}", range=range(0., 5C_0[][19]; length=1_000), format="{:.3e}", startvalue=C_0[][19])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][10,  3][ 2,  1], (label=L"C_{20}", range=range(0., 5C_0[][20]; length=1_000), format="{:.3e}", startvalue=C_0[][20])), # , width=0.4w[]))
+        ]; notify(sg_sliders)
     elseif s == BCJ.Bammann1990Modeling
-        plasticstrainrate_text[]        = L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'"
-        kinematichardening_text[]       = L"\dot{\mathbf{\alpha}} = h\mu(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}"
-        isotropichardening_text[]       = L"\dot{\kappa} = H\mu(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}"
-        flowrule_text[]                 = L"F = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}|, \theta)"
-        initialyieldstressbeta_text[]   = L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)"
-        textbox_V_text[]    = L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)"
-        textbox_Y_text[]    = L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)"
-        textbox_f_text[]    = L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)"
-        textbox_rd_text[]   = L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)"
-        textbox_h_text[]    = L"h = C_{ 9} \mathrm{exp}( C_{10} / \theta)"
-        textbox_rs_text[]   = L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)"
-        textbox_Rd_text[]   = L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)"
-        textbox_H_text[]    = L"H = C_{15} \mathrm{exp}( C_{16} / \theta)"
-        textbox_Rs_text[]   = L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)"
-        textbox_Yadj_text[] = L"Y_{adj}"
+        nequations[] = 9; notify(nequations)
+        characteristic_equations[] = [
+            # plasticstrainrate
+            L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'"
+            # kinematichardening
+            L"\dot{\mathbf{\alpha}} = h\mu(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}"
+            # isotropichardening
+            L"\dot{\kappa} = H\mu(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}"
+            # flowrule
+            L"F = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}|, \theta)"
+            # initialyieldstressbeta
+            L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)"
+        ]; notify(characteristic_equations)
+        for (lab, eq) in zip(chareqs_labels[], characteristic_equations[])
+            lab.text[] = eq
+        end; notify(chareqs_labels)
+        empty!(g); grid_sliders[] = GridLayout(g[1, 1], length(dependence_equations[]), 3); notify(grid_sliders)
+        dependence_equations[] = [
+            L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)", # textbox_V
+            L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)", # textbox_Y
+            L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)", # textbox_f
+            L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)", # textbox_rd
+            L"h = C_{ 9} \mathrm{exp}( C_{10} / \theta)", # textbox_h
+            L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)", # textbox_rs
+            L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)", # textbox_Rd
+            L"H = C_{15} \mathrm{exp}( C_{16} / \theta)", # textbox_H
+            L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)", # textbox_Rs
+        ]; notify(dependence_equations)
+        # for (lab, eq) in zip(depeqs_labels[], dependence_equations[])
+        #     lab.text[] = eq
+        # end; notify(depeqs_labels)
+        depeqs_labels[] = [
+            Label(grid_sliders[][ 1,  2], dependence_equations[][ 1]; halign=:left)
+            Label(grid_sliders[][ 2,  2], dependence_equations[][ 2]; halign=:left)
+            Label(grid_sliders[][ 3,  2], dependence_equations[][ 3]; halign=:left)
+            Label(grid_sliders[][ 4,  2], dependence_equations[][ 4]; halign=:left)
+            Label(grid_sliders[][ 5,  2], dependence_equations[][ 5]; halign=:left)
+            Label(grid_sliders[][ 6,  2], dependence_equations[][ 6]; halign=:left)
+            Label(grid_sliders[][ 7,  2], dependence_equations[][ 7]; halign=:left)
+            Label(grid_sliders[][ 8,  2], dependence_equations[][ 8]; halign=:left)
+            Label(grid_sliders[][ 9,  2], dependence_equations[][ 9]; halign=:left)
+        ]; notify(depeqs_labels)
+        toggles[]     = [ # collect toggles
+            Toggle(grid_sliders[][ 1,  1], active=false), # V
+            Toggle(grid_sliders[][ 2,  1], active=false), # Y
+            Toggle(grid_sliders[][ 3,  1], active=false), # f
+            Toggle(grid_sliders[][ 4,  1], active=false), # rd
+            Toggle(grid_sliders[][ 5,  1], active=false), # h
+            Toggle(grid_sliders[][ 6,  1], active=false), # rs
+            Toggle(grid_sliders[][ 7,  1], active=false), # Rd
+            Toggle(grid_sliders[][ 8,  1], active=false), # H
+            Toggle(grid_sliders[][ 9,  1], active=false), # Rs
+        ]; notify(toggles)
+        sg_sliders[] = [
+            # V
+            SliderGrid(grid_sliders[][ 1,  3][ 1,  1], (label=L"C_{ 1}", range=range(0., 5C_0[][ 1]; length=1_000), format="{:.3e}", startvalue=C_0[][ 1])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 1,  3][ 2,  1], (label=L"C_{ 2}", range=range(0., 5C_0[][ 2]; length=1_000), format="{:.3e}", startvalue=C_0[][ 2])), # , width=0.4w[]))
+            # Y
+            SliderGrid(grid_sliders[][ 2,  3][ 1,  1], (label=L"C_{ 3}", range=range(0., 5C_0[][ 3]; length=1_000), format="{:.3e}", startvalue=C_0[][ 3])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 2,  3][ 2,  1], (label=L"C_{ 4}", range=range(0., 5C_0[][ 4]; length=1_000), format="{:.3e}", startvalue=C_0[][ 4])), # , width=0.4w[]))
+            # f
+            SliderGrid(grid_sliders[][ 3,  3][ 1,  1], (label=L"C_{ 5}", range=range(0., 5C_0[][ 5]; length=1_000), format="{:.3e}", startvalue=C_0[][ 5])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 3,  3][ 2,  1], (label=L"C_{ 6}", range=range(0., 5C_0[][ 6]; length=1_000), format="{:.3e}", startvalue=C_0[][ 6])), # , width=0.4w[]))
+            # rd
+            SliderGrid(grid_sliders[][ 4,  3][ 1,  1], (label=L"C_{ 7}", range=range(0., 5C_0[][ 7]; length=1_000), format="{:.3e}", startvalue=C_0[][ 7])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 4,  3][ 2,  1], (label=L"C_{ 8}", range=range(0., 5C_0[][ 8]; length=1_000), format="{:.3e}", startvalue=C_0[][ 8])), # , width=0.4w[]))
+            # h
+            SliderGrid(grid_sliders[][ 5,  3][ 1,  1], (label=L"C_{ 9}", range=range(0., 5C_0[][ 9]; length=1_000), format="{:.3e}", startvalue=C_0[][ 9])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 5,  3][ 2,  1], (label=L"C_{10}", range=range(0., 5C_0[][10]; length=1_000), format="{:.3e}", startvalue=C_0[][10])), # , width=0.4w[]))
+            # rs
+            SliderGrid(grid_sliders[][ 6,  3][ 1,  1], (label=L"C_{11}", range=range(0., 5C_0[][11]; length=1_000), format="{:.3e}", startvalue=C_0[][11])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 6,  3][ 2,  1], (label=L"C_{12}", range=range(0., 5C_0[][12]; length=1_000), format="{:.3e}", startvalue=C_0[][12])), # , width=0.4w[]))
+            # Rd
+            SliderGrid(grid_sliders[][ 7,  3][ 1,  1], (label=L"C_{13}", range=range(0., 5C_0[][13]; length=1_000), format="{:.3e}", startvalue=C_0[][13])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 7,  3][ 2,  1], (label=L"C_{14}", range=range(0., 5C_0[][14]; length=1_000), format="{:.3e}", startvalue=C_0[][14])), # , width=0.4w[]))
+            # H
+            SliderGrid(grid_sliders[][ 8,  3][ 1,  1], (label=L"C_{15}", range=range(0., 5C_0[][15]; length=1_000), format="{:.3e}", startvalue=C_0[][15])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 8,  3][ 2,  1], (label=L"C_{16}", range=range(0., 5C_0[][16]; length=1_000), format="{:.3e}", startvalue=C_0[][16])), # , width=0.4w[]))
+            # Rs
+            SliderGrid(grid_sliders[][ 9,  3][ 1,  1], (label=L"C_{17}", range=range(0., 5C_0[][17]; length=1_000), format="{:.3e}", startvalue=C_0[][17])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 9,  3][ 2,  1], (label=L"C_{18}", range=range(0., 5C_0[][18]; length=1_000), format="{:.3e}", startvalue=C_0[][18])), # , width=0.4w[]))
+        ]; notify(sg_sliders)
     end
-    notify(plasticstrainrate_text); notify(plasticstrainrate_label.text)
-    notify(kinematichardening_text); notify(kinematichardening_label.text)
-    notify(isotropichardening_text); notify(isotropichardening_label.text)
-    notify(flowrule_text); notify(flowrule_label.text)
-    notify(initialyieldstressbeta_text); notify(initialyieldstressbeta_label.text)
-    notify(textbox_V_text); notify(textbox_V.text)
-    notify(textbox_Y_text); notify(textbox_Y.text)
-    notify(textbox_f_text); notify(textbox_f.text)
-    notify(textbox_rd_text); notify(textbox_rd.text)
-    notify(textbox_h_text); notify(textbox_h.text)
-    notify(textbox_rs_text); notify(textbox_rs.text)
-    notify(textbox_Rd_text); notify(textbox_Rd.text)
-    notify(textbox_H_text); notify(textbox_H.text)
-    notify(textbox_Rs_text); notify(textbox_Rs.text)
-    notify(textbox_Yadj_text); notify(textbox_Yadj.text)
-    # notify(modelselection_menu.selection)
 end
 ### show sliders
 on(showsliders_button.clicks) do click
@@ -450,18 +567,18 @@ on(events(g).scroll) do scroll
     translate!(Accum, g.scene, 2 .* map(-, scroll))
 end
 ### update curves from sliders
-for (i, sgs) in enumerate(sg_sliders)
+for (i, sgs) in enumerate(sg_sliders[])
     on(only(sgs.sliders).value) do val
         # redefine params with new slider values
         params[][BCJinator.constant_string(i)] = to_value(val);       notify(params)
-        BCJinator.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], ISV_Model[])
+        BCJinator.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], BCJMetal[])
     end
 end
 
 ## buttons
 ### calibrate parameters
 on(buttons_calibrate.clicks) do click
-    calibratingtoggles_indices = findall(t->t.active[], toggles)
+    calibratingtoggles_indices = findall(t->t.active[], toggles[])
     if !isempty(calibratingtoggles_indices)
         constantstocalibrate_indices = []
         constantstocalibrate = Float64[]
@@ -651,77 +768,77 @@ on(buttons_calibrate.clicks) do click
             r[BCJinator.constant_string(j)] = max(0., q[i])
         end
         for i in calibratingtoggles_indices
-            toggles[i].active[] = false;                            notify(toggles[i].active)
+            toggles[][i].active[] = false;                          notify(toggles[][i].active)
             if      i ==  1
                 params[]["C01"] = r["C01"];                         notify(params)
-                set_close_to!(sg_sliders[ 1].sliders[1], r["C01"])
-                sg_sliders[ 1].sliders[1].value[] = r["C01"];       notify(sg_sliders[ 1].sliders[1].value)
+                set_close_to!(sg_sliders[][ 1].sliders[1], r["C01"])
+                sg_sliders[][ 1].sliders[1].value[] = r["C01"];     notify(sg_sliders[][ 1].sliders[1].value)
                 params[]["C02"] = r["C02"];                         notify(params)
-                set_close_to!(sg_sliders[ 2].sliders[1], r["C02"])
-                sg_sliders[ 2].sliders[1].value[] = r["C02"];       notify(sg_sliders[ 2].sliders[1].value)
+                set_close_to!(sg_sliders[][ 2].sliders[1], r["C02"])
+                sg_sliders[][ 2].sliders[1].value[] = r["C02"];     notify(sg_sliders[][ 2].sliders[1].value)
             elseif  i ==  2
                 params[]["C03"] = r["C03"];                         notify(params)
-                set_close_to!(sg_sliders[ 3].sliders[1], r["C03"])
-                sg_sliders[ 3].sliders[1].value[] = r["C03"];       notify(sg_sliders[ 3].sliders[1].value)
+                set_close_to!(sg_sliders[][ 3].sliders[1], r["C03"])
+                sg_sliders[][ 3].sliders[1].value[] = r["C03"];     notify(sg_sliders[][ 3].sliders[1].value)
                 params[]["C04"] = r["C04"];                         notify(params)
-                set_close_to!(sg_sliders[ 4].sliders[1], r["C04"])
-                sg_sliders[ 4].sliders[1].value[] = r["C04"];       notify(sg_sliders[ 4].sliders[1].value)
+                set_close_to!(sg_sliders[][ 4].sliders[1], r["C04"])
+                sg_sliders[][ 4].sliders[1].value[] = r["C04"];     notify(sg_sliders[][ 4].sliders[1].value)
             elseif  i ==  3
                 params[]["C05"] = r["C05"];                         notify(params)
-                set_close_to!(sg_sliders[ 5].sliders[1], r["C05"])
-                sg_sliders[ 5].sliders[1].value[] = r["C05"];       notify(sg_sliders[ 5].sliders[1].value)
+                set_close_to!(sg_sliders[][ 5].sliders[1], r["C05"])
+                sg_sliders[][ 5].sliders[1].value[] = r["C05"];     notify(sg_sliders[][ 5].sliders[1].value)
                 params[]["C06"] = r["C06"];                         notify(params)
-                set_close_to!(sg_sliders[ 6].sliders[1], r["C06"])
-                sg_sliders[ 6].sliders[1].value[] = r["C06"];       notify(sg_sliders[ 6].sliders[1].value)
+                set_close_to!(sg_sliders[][ 6].sliders[1], r["C06"])
+                sg_sliders[][ 6].sliders[1].value[] = r["C06"];     notify(sg_sliders[][ 6].sliders[1].value)
             elseif  i ==  4
                 params[]["C07"] = r["C07"];                         notify(params)
-                set_close_to!(sg_sliders[ 7].sliders[1], r["C07"])
-                sg_sliders[ 7].sliders[1].value[] = r["C07"];       notify(sg_sliders[ 7].sliders[1].value)
+                set_close_to!(sg_sliders[][ 7].sliders[1], r["C07"])
+                sg_sliders[][ 7].sliders[1].value[] = r["C07"];     notify(sg_sliders[][ 7].sliders[1].value)
                 params[]["C08"] = r["C08"];                         notify(params)
-                set_close_to!(sg_sliders[ 8].sliders[1], r["C08"])
-                sg_sliders[ 8].sliders[1].value[] = r["C08"];       notify(sg_sliders[ 8].sliders[1].value)
+                set_close_to!(sg_sliders[][ 8].sliders[1], r["C08"])
+                sg_sliders[][ 8].sliders[1].value[] = r["C08"];     notify(sg_sliders[][ 8].sliders[1].value)
             elseif  i ==  5
                 params[]["C09"] = r["C09"];                         notify(params)
-                set_close_to!(sg_sliders[ 9].sliders[1], r["C09"])
-                sg_sliders[ 9].sliders[1].value[] = r["C09"];       notify(sg_sliders[ 9].sliders[1].value)
+                set_close_to!(sg_sliders[][ 9].sliders[1], r["C09"])
+                sg_sliders[][ 9].sliders[1].value[] = r["C09"];     notify(sg_sliders[][ 9].sliders[1].value)
                 params[]["C10"] = r["C10"];                         notify(params)
-                set_close_to!(sg_sliders[10].sliders[1], r["C10"])
-                sg_sliders[10].sliders[1].value[] = r["C10"];       notify(sg_sliders[10].sliders[1].value)
+                set_close_to!(sg_sliders[][10].sliders[1], r["C10"])
+                sg_sliders[][10].sliders[1].value[] = r["C10"];     notify(sg_sliders[][10].sliders[1].value)
             elseif  i ==  6
                 params[]["C11"] = r["C11"];                         notify(params)
-                set_close_to!(sg_sliders[11].sliders[1], r["C11"])
-                sg_sliders[11].sliders[1].value[] = r["C11"];       notify(sg_sliders[11].sliders[1].value)
+                set_close_to!(sg_sliders[][11].sliders[1], r["C11"])
+                sg_sliders[][11].sliders[1].value[] = r["C11"];     notify(sg_sliders[][11].sliders[1].value)
                 params[]["C12"] = r["C12"];                         notify(params)
-                set_close_to!(sg_sliders[12].sliders[1], r["C12"])
-                sg_sliders[12].sliders[1].value[] = r["C12"];       notify(sg_sliders[12].sliders[1].value)
+                set_close_to!(sg_sliders[][12].sliders[1], r["C12"])
+                sg_sliders[][12].sliders[1].value[] = r["C12"];     notify(sg_sliders[][12].sliders[1].value)
             elseif  i ==  7
                 params[]["C13"] = r["C13"];                         notify(params)
-                set_close_to!(sg_sliders[13].sliders[1], r["C13"])
-                sg_sliders[13].sliders[1].value[] = r["C13"];       notify(sg_sliders[13].sliders[1].value)
+                set_close_to!(sg_sliders[][13].sliders[1], r["C13"])
+                sg_sliders[][13].sliders[1].value[] = r["C13"];     notify(sg_sliders[][13].sliders[1].value)
                 params[]["C14"] = r["C14"];                         notify(params)
-                set_close_to!(sg_sliders[14].sliders[1], r["C14"])
-                sg_sliders[14].sliders[1].value[] = r["C14"];       notify(sg_sliders[14].sliders[1].value)
+                set_close_to!(sg_sliders[][14].sliders[1], r["C14"])
+                sg_sliders[][14].sliders[1].value[] = r["C14"];     notify(sg_sliders[][14].sliders[1].value)
             elseif  i ==  8
                 params[]["C15"] = r["C15"];                         notify(params)
-                set_close_to!(sg_sliders[15].sliders[1], r["C15"])
-                sg_sliders[15].sliders[1].value[] = r["C15"];       notify(sg_sliders[15].sliders[1].value)
+                set_close_to!(sg_sliders[][15].sliders[1], r["C15"])
+                sg_sliders[][15].sliders[1].value[] = r["C15"];     notify(sg_sliders[][15].sliders[1].value)
                 params[]["C16"] = r["C16"];                         notify(params)
-                set_close_to!(sg_sliders[16].sliders[1], r["C16"])
-                sg_sliders[16].sliders[1].value[] = r["C16"];       notify(sg_sliders[16].sliders[1].value)
+                set_close_to!(sg_sliders[][16].sliders[1], r["C16"])
+                sg_sliders[][16].sliders[1].value[] = r["C16"];     notify(sg_sliders[][16].sliders[1].value)
             elseif  i ==  9
                 params[]["C17"] = r["C17"];                         notify(params)
-                set_close_to!(sg_sliders[17].sliders[1], r["C17"])
-                sg_sliders[17].sliders[1].value[] = r["C17"];       notify(sg_sliders[17].sliders[1].value)
+                set_close_to!(sg_sliders[][17].sliders[1], r["C17"])
+                sg_sliders[][17].sliders[1].value[] = r["C17"];     notify(sg_sliders[][17].sliders[1].value)
                 params[]["C18"] = r["C18"];                         notify(params)
-                set_close_to!(sg_sliders[18].sliders[1], r["C18"])
-                sg_sliders[18].sliders[1].value[] = r["C18"];       notify(sg_sliders[18].sliders[1].value)
+                set_close_to!(sg_sliders[][18].sliders[1], r["C18"])
+                sg_sliders[][18].sliders[1].value[] = r["C18"];     notify(sg_sliders[][18].sliders[1].value)
             elseif  i == 10
                 params[]["C19"] = r["C19"];                         notify(params)
-                set_close_to!(sg_sliders[19].sliders[1], r["C19"])
-                sg_sliders[19].sliders[1].value[] = r["C19"];       notify(sg_sliders[19].sliders[1].value)
+                set_close_to!(sg_sliders[][19].sliders[1], r["C19"])
+                sg_sliders[][19].sliders[1].value[] = r["C19"];     notify(sg_sliders[][19].sliders[1].value)
                 params[]["C20"] = r["C20"];                         notify(params)
-                set_close_to!(sg_sliders[20].sliders[1], r["C20"])
-                sg_sliders[20].sliders[1].value[] = r["C20"];       notify(sg_sliders[20].sliders[1].value)
+                set_close_to!(sg_sliders[][20].sliders[1], r["C20"])
+                sg_sliders[][20].sliders[1].value[] = r["C20"];     notify(sg_sliders[][20].sliders[1].value)
             end
         end
     end
@@ -752,7 +869,7 @@ on(buttons_savecurves.clicks) do click
     propsfile_new = save_file(; filterlist="csv")
     df = DataFrame(
         "Comment" => [BCJinator.constant_string.(range(1, nsliders))..., "Bulk Mod", "Shear Mod"],
-        "For Calibration with vumat"    => [[only(sgc.sliders).value[] for sgc in sg_sliders]..., bulk_mod, shear_mod]
+        "For Calibration with vumat"    => [[only(sgc.sliders).value[] for sgc in sg_sliders[]]..., bulk_mod, shear_mod]
     )
     CSV.write(propsfile_new, df)
     println("New props file written to: \"", propsfile_new, "\"")
