@@ -582,7 +582,7 @@ on(events(g).scroll) do scroll
     translate!(Accum, g.scene, 2 .* map(-, scroll))
 end
 ### update curves from sliders
-for (i, sgs) in enumerate(sg_sliders[])
+@lift for (i, sgs) in enumerate($sg_sliders)
     on(only(sgs.sliders).value) do val
         # redefine params with new slider values
         params[][BCJinator.constant_string(i)] = to_value(val);       notify(params)
