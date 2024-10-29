@@ -9,7 +9,7 @@ using NativeFileDialog
 # using NLsolve
 using Optim
 
-import BammannChiesaJohnsons as BCJ
+import BammannChiesaJohnsonPlasticity as BCJ
 import BCJCalibratinator as BCJinator
 
 
@@ -103,7 +103,7 @@ end
 files       = Observable(files)     # trying to switch over to observable
 joinfiles(fs) = join([fs...], "\n")
 input_files = lift(joinfiles, files)
-bcj         = Observable(BCJinator.BCJ_metal_calibrate_init(files[], incnum[], istate[], params[], MPa, ISV_Model[]))
+bcj         = Observable(BCJinator.bcjmetalcalibration_init(files[], incnum[], istate[], params[], MPa, ISV_Model[]))
 # lines[1] = data
 # lines[2] = model (to be updated)
 # lines[3] = alpha model (to be updated)
@@ -360,7 +360,7 @@ on(buttons_updateinputs.clicks) do click
             error("'Tension/Compression' or 'Torsion' needs to be toggled on.")
         end
     end;                                                        notify(istate)
-    bcj[] = BCJinator.BCJ_metal_calibrate_init(files[], incnum[], istate[], params[], MPa, ISV_Model[]); notify(bcj)
+    bcj[] = BCJinator.bcjmetalcalibration_init(files[], incnum[], istate[], params[], MPa, ISV_Model[]); notify(bcj)
     dataseries[] = BCJinator.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs[]); notify(dataseries)
     BCJinator.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
     !isnothing(leg) ? (leg[] = axislegend(ax, position=:rb)) : nothing; notify(leg)
@@ -508,24 +508,27 @@ on(buttons_calibrate.clicks) do click
             for i in range(1, bcj[].nsets)
                 emax        = maximum(bcj[].test_data["Data_E"][i])
                 # println('Setup: emax for set ',i,' = ', emax)
-                bcj_ref     = BCJ.BCJ_metal(
+                bcj_loading     = BCJ.BCJMetalStrainControl(
                     bcj[].test_cond["Temp"][i], bcj[].test_cond["StrainRate"][i],
                     emax, incnum[], istate[], r)
-                bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref, BCJ.DK)
-                BCJ.solve!(bcj_current)
+                bcj_configuration = BCJ.bcjmetalreferenceconfiguration(bcj_loading, BCJ.DK)
+                bcj_reference   = bcj_configuration[1]
+                bcj_current     = bcj_configuration[2]
+                bcj_history     = bcj_configuration[3]
+                BCJ.solve!(bcj_current, bcj_history)
                 idx = []
                 for t in bcj[].test_data["Data_E"][i]
-                    j = findlast(t .<= bcj_current.ϵₜₒₜₐₗ[kS, :])
+                    j = findlast(t .<= bcj_history.ϵₜₒₜₐₗ[kS, :])
                     push!(idx, if !isnothing(j)
                         j
                     else
-                        findfirst(t .>= bcj_current.ϵₜₒₜₐₗ[kS, :])
+                        findfirst(t .>= bcj_history.ϵₜₒₜₐₗ[kS, :])
                     end)
                 end
-                append!(ret_x, bcj_current.ϵₜₒₜₐₗ[kS, :][idx])
-                append!(ret_y, bcj[].test_data["Data_S"][i] - bcj_current.S[kS, :][idx])
+                append!(ret_x, bcj_history.ϵₜₒₜₐₗ[kS, :][idx])
+                append!(ret_y, bcj[].test_data["Data_S"][i] - bcj_history.S[kS, :][idx])
                 # err += sum((bcj[].test_data["Data_S"][i] - bcj_current.S[kS, :][idx]) .^ 2.)
-                # # err += sum((bcj[].test_data["Data_S"][i] - BCJinator.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
+                # # err += sum((bcj[].test_data["Data_S"][i] - BCJinator.bcjmetalcalibration_kernel(bcj[].test_data, bcj[].test_cond,
                 # #     incnum[], istate[], r, i).S[idx]) .^ 2.)
             end
             return ret_y
@@ -538,7 +541,7 @@ on(buttons_calibrate.clicks) do click
             # end
             # err = 0.
             # for i in range(1, bcj[].nsets)
-            #     err += sum((bcj[].test_data["Data_S"][i] - BCJinator.BCJ_metal_calibrate_kernel(bcj[].test_data, bcj[].test_cond,
+            #     err += sum((bcj[].test_data["Data_S"][i] - BCJinator.bcjmetalcalibration_kernel(bcj[].test_data, bcj[].test_cond,
             #         incnum[], istate[], r, i).S) .^ 2.)
             # end
             # return err
@@ -554,22 +557,25 @@ on(buttons_calibrate.clicks) do click
             for i in range(1, bcj[].nsets)
                 emax        = maximum(bcj[].test_data["Data_E"][i])
                 # println('Setup: emax for set ',i,' = ', emax)
-                bcj_ref     = BCJ.BCJ_metal(
+                bcj_loading     = BCJ.BCJMetalStrainControl(
                     bcj[].test_cond["Temp"][i], bcj[].test_cond["StrainRate"][i],
                     emax, incnum[], istate[], r)
-                bcj_current = BCJ.BCJ_metal_currentconfiguration_init(bcj_ref, BCJ.DK)
-                BCJ.solve!(bcj_current)
+                bcj_configuration = BCJ.bcjmetalreferenceconfiguration(bcj_loading, BCJ.DK)
+                bcj_reference   = bcj_configuration[1]
+                bcj_current     = bcj_configuration[2]
+                bcj_history     = bcj_configuration[3]
+                BCJ.solve!(bcj_current, bcj_history)
                 idx = []
                 for t in bcj[].test_data["Data_E"][i]
-                    j = findlast(t .<= bcj_current.ϵₜₒₜₐₗ[kS, :])
+                    j = findlast(t .<= bcj_history.ϵₜₒₜₐₗ[kS, :])
                     push!(idx, if !isnothing(j)
                         j
                     else
-                        findfirst(t .>= bcj_current.ϵₜₒₜₐₗ[kS, :])
+                        findfirst(t .>= bcj_history.ϵₜₒₜₐₗ[kS, :])
                     end)
                 end
                 # append!(ret_x, bcj_current.ϵₜₒₜₐₗ[kS, :][idx])
-                append!(stress_rate, 200e9 .* (bcj_current.ϵ_dot_effective .- bcj_current.ϵ_dot_plastic__[kS, :][idx]))
+                append!(stress_rate, 200e9 .* (bcj_history.ϵ_dot_effective .- bcj_history.ϵ_dot_plastic__[kS, :][idx]))
             end
             return stress_rate
         end

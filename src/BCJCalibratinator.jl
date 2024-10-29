@@ -1,13 +1,13 @@
 module BCJCalibratinator
 
 include("functions.jl")
-export BCJ_metal_calibrate
+export BCJMetalExperimentalData
 export constant_string
 export dataseries_init
 export plot_sets!
-export BCJ_metal_calibrate_kernel
-export BCJ_metal_calibrate_init
-export BCJ_metal_calibrate_update!
+export bcjmetalcalibration_kernel
+export bcjmetalcalibration_init
+export bcjmetalcalibration_update!
 export update!
 export reset_sliders!
 
