@@ -23,7 +23,8 @@ istate      = Observable(1)      #1 = tension, 2 = torsion
 Ask_Files   = true
 Material    = "4340"
 BCJMetal    = Observable(BCJ.DK)
-Plot_ISVs   = Observable([BCJ.KinematicHardening{BCJMetal[]}, BCJ.IsotropicHardening{BCJMetal[]}])
+# Plot_ISVs   = Observable([BCJ.KinematicHardening{BCJMetal[]}, BCJ.IsotropicHardening{BCJMetal[]}])
+Plot_ISVs   = Observable([:alpha, :kappa])
 MPa         = 1e6           # Unit conversion from MPa to Pa from data
 min_stress  = 0.
 max_stress  = 3000 * MPa
@@ -382,6 +383,16 @@ end
 # end
 ### model selection (menu)
 on(modelselection_menu.selection) do s
+    closedsliders = try
+        GLMakie.close(screen_sliders[])
+        true
+    catch exc
+        if isa(exc, AssertionError)
+            false
+        else
+            true
+        end
+    end
     BCJMetal[] = s; notify(BCJMetal)
     if s == BCJ.DK
         nequations[] = 10; notify(nequations)
@@ -556,11 +567,15 @@ on(modelselection_menu.selection) do s
             SliderGrid(grid_sliders[][ 9,  3][ 2,  1], (label=L"C_{18}", range=range(0., 5C_0[][18]; length=1_000), format="{:.3e}", startvalue=C_0[][18])), # , width=0.4w[]))
         ]; notify(sg_sliders)
     end
+    if closedsliders
+        screen_sliders[] = GLMakie.Screen(; title="Sliders", focus_on_show=true); notify(screen_sliders)
+        display(screen_sliders[], g)
+    end
 end
 ### show sliders
 on(showsliders_button.clicks) do click
-    screen_sliders = GLMakie.Screen(; title="Sliders", focus_on_show=true)
-    display(screen_sliders, g)
+    screen_sliders[] = GLMakie.Screen(; title="Sliders", focus_on_show=true); notify(screen_sliders)
+    display(screen_sliders[], g)
 end
 ### scroll sliders window
 on(events(g).scroll) do scroll
