@@ -174,11 +174,16 @@ baa = GridLayout(ba[1, 1], 1, 1)
 modelselection_title_label  = Label(baa[ 1,  1], "Model Selection")
 modelselection_menu         = Menu(baa[ 1,  2], options=zip(["Bammann1990Modeling", "DK"], [BCJ.Bammann1990Modeling, BCJ.DK]), default="DK")
 bab = GridLayout(ba[2, 1], 5, 1)
-plasticstrainrate_label     = Label(bab[ 1,  1], L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'"; halign=:left)
-kinematichardening_label    = Label(bab[ 2,  1], L"\dot{\mathbf{\alpha}} = h\mu(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}"; halign=:left)
-isotropichardening_label    = Label(bab[ 3,  1], L"\dot{\kappa} = H\mu(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}"; halign=:left)
-flowrule_label              = Label(bab[ 4,  1], L"\phi = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}, \theta)"; halign=:left)
-initialyieldstressbeta_label= Label(bab[ 5,  1], L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)"; halign=:left)
+plasticstrainrate_text      = Observable(L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ (1 - \phi)V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'")
+kinematichardening_text     = Observable(L"\dot{\mathbf{\alpha}} = h(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}")
+isotropichardening_text     = Observable(L"\dot{\kappa} = H(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}")
+flowrule_text               = Observable(L"F = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}|, \theta)")
+initialyieldstressbeta_text = Observable(L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)")
+plasticstrainrate_label     = Label(bab[ 1,  1], plasticstrainrate_text; halign=:left)
+kinematichardening_label    = Label(bab[ 2,  1], kinematichardening_text; halign=:left)
+isotropichardening_label    = Label(bab[ 3,  1], isotropichardening_text; halign=:left)
+flowrule_label              = Label(bab[ 4,  1], flowrule_text; halign=:left)
+initialyieldstressbeta_label= Label(bab[ 5,  1], initialyieldstressbeta_text; halign=:left)
 # grid_sliders    = GridLayout(ba[ 2,  1], 10, 3)
 showsliders_button = Button(ba[3, 1], label="Show sliders")
 grid_plot       = GridLayout(b[ 1,  2], 10, 9)
@@ -218,16 +223,26 @@ toggles     = [ # collect toggles
     toggle_Yadj     # Yadj
 ]
 # label each slider with equation
-textbox_V   = Label(grid_sliders[ 1,  2], L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)")
-textbox_Y   = Label(grid_sliders[ 2,  2], L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)")
-textbox_f   = Label(grid_sliders[ 3,  2], L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)")
-textbox_rd  = Label(grid_sliders[ 4,  2], L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)")
-textbox_h   = Label(grid_sliders[ 5,  2], L"h = C_{ 9} - C_{10}\theta")
-textbox_rs  = Label(grid_sliders[ 6,  2], L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)")
-textbox_Rd  = Label(grid_sliders[ 7,  2], L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)")
-textbox_H   = Label(grid_sliders[ 8,  2], L"H = C_{15} - C_{16}\theta")
-textbox_Rs  = Label(grid_sliders[ 9,  2], L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)")
-textbox_Yadj= Label(grid_sliders[10,  2], L"Y_{adj}")
+textbox_V_text      = Observable(L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)")
+textbox_Y_text      = Observable(L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)")
+textbox_f_text      = Observable(L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)")
+textbox_rd_text     = Observable(L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)")
+textbox_h_text      = Observable(L"h = C_{ 9} - C_{10}\theta")
+textbox_rs_text     = Observable(L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)")
+textbox_Rd_text     = Observable(L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)")
+textbox_H_text      = Observable(L"H = C_{15} - C_{16}\theta")
+textbox_Rs_text     = Observable(L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)")
+textbox_Yadj_text   = Observable(L"Y_{adj}")
+textbox_V   = Label(grid_sliders[ 1,  2], textbox_V_text)
+textbox_Y   = Label(grid_sliders[ 2,  2], textbox_Y_text)
+textbox_f   = Label(grid_sliders[ 3,  2], textbox_f_text)
+textbox_rd  = Label(grid_sliders[ 4,  2], textbox_rd_text)
+textbox_h   = Label(grid_sliders[ 5,  2], textbox_h_text)
+textbox_rs  = Label(grid_sliders[ 6,  2], textbox_rs_text)
+textbox_Rd  = Label(grid_sliders[ 7,  2], textbox_Rd_text)
+textbox_H   = Label(grid_sliders[ 8,  2], textbox_H_text)
+textbox_Rs  = Label(grid_sliders[ 9,  2], textbox_Rs_text)
+textbox_Yadj= Label(grid_sliders[10,  2], textbox_Yadj_text)
 # make a slider for each constant
 # V
 sg_C01      = SliderGrid(grid_sliders[ 1,  3][ 1,  1], (label=L"C_{ 1}", range=range(0., 5C_0[ 1]; length=1_000), format="{:.3e}", startvalue=C_0[ 1])) # , width=0.4w[]))
@@ -375,6 +390,54 @@ end
 ### model selection (menu)
 on(modelselection_menu.selection) do s
     ISV_Model[] = s; notify(ISV_Model)
+    if s == BCJ.DK
+        plasticstrainrate_text[]        = L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ (1 - \phi)V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'"
+        kinematichardening_text[]       = L"\dot{\mathbf{\alpha}} = h(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}"
+        isotropichardening_text[]       = L"\dot{\kappa} = H(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}"
+        flowrule_text[]                 = L"F = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}|, \theta)"
+        initialyieldstressbeta_text[]   = L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)"
+        textbox_V_text[]    = L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)"
+        textbox_Y_text[]    = L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)"
+        textbox_f_text[]    = L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)"
+        textbox_rd_text[]   = L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)"
+        textbox_h_text[]    = L"h = C_{ 9} - C_{10}\theta"
+        textbox_rs_text[]   = L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)"
+        textbox_Rd_text[]   = L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)"
+        textbox_H_text[]    = L"H = C_{15} - C_{16}\theta"
+        textbox_Rs_text[]   = L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)"
+        textbox_Yadj_text[] = L"Y_{adj}"
+    elseif s == BCJ.Bammann1990Modeling
+        plasticstrainrate_text[]        = L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'"
+        kinematichardening_text[]       = L"\dot{\mathbf{\alpha}} = h\mu(\theta)\dot{\epsilon}_{p} - [r_{d}(\theta)|\dot{\epsilon}_{p}| + r_{s}(\theta)]|\mathbf{\alpha}|\mathbf{\alpha}"
+        isotropichardening_text[]       = L"\dot{\kappa} = H\mu(\theta)\dot{\epsilon}_{p} - [R_{d}(\theta)|\dot{\epsilon}_{p}| + R_{s}(\theta)]\kappa^{2}"
+        flowrule_text[]                 = L"F = |\sigma - \alpha| - \kappa - \beta(|\dot{\epsilon}_{p}|, \theta)"
+        initialyieldstressbeta_text[]   = L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)"
+        textbox_V_text[]    = L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)"
+        textbox_Y_text[]    = L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)"
+        textbox_f_text[]    = L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)"
+        textbox_rd_text[]   = L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)"
+        textbox_h_text[]    = L"h = C_{ 9} \mathrm{exp}( C_{10} / \theta)"
+        textbox_rs_text[]   = L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)"
+        textbox_Rd_text[]   = L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)"
+        textbox_H_text[]    = L"H = C_{15} \mathrm{exp}( C_{16} / \theta)"
+        textbox_Rs_text[]   = L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)"
+        textbox_Yadj_text[] = L"Y_{adj}"
+    end
+    notify(plasticstrainrate_text); notify(plasticstrainrate_label.text)
+    notify(kinematichardening_text); notify(kinematichardening_label.text)
+    notify(isotropichardening_text); notify(isotropichardening_label.text)
+    notify(flowrule_text); notify(flowrule_label.text)
+    notify(initialyieldstressbeta_text); notify(initialyieldstressbeta_label.text)
+    notify(textbox_V_text); notify(textbox_V.text)
+    notify(textbox_Y_text); notify(textbox_Y.text)
+    notify(textbox_f_text); notify(textbox_f.text)
+    notify(textbox_rd_text); notify(textbox_rd.text)
+    notify(textbox_h_text); notify(textbox_h.text)
+    notify(textbox_rs_text); notify(textbox_rs.text)
+    notify(textbox_Rd_text); notify(textbox_Rd.text)
+    notify(textbox_H_text); notify(textbox_H.text)
+    notify(textbox_Rs_text); notify(textbox_Rs.text)
+    notify(textbox_Yadj_text); notify(textbox_Yadj.text)
     # notify(modelselection_menu.selection)
 end
 ### show sliders
