@@ -35,6 +35,7 @@ end
 
 ## sliders
 nsliders    = Observable(0)       # Index with "s in range(1,nsliders):" so s corresponds with C#
+closedsliders = Observable(true)
 nequations  = Observable(10)
 C_0         = @lift Vector{Float64}(undef, $nsliders)
 
@@ -383,16 +384,18 @@ end
 # end
 ### model selection (menu)
 on(modelselection_menu.selection) do s
-    closedsliders = try
+    do_opensliders = GLMakie.isopen(g.scene)
+    closedsliders[] = try
         GLMakie.close(screen_sliders[])
         true
     catch exc
+        println(exc)
         if isa(exc, AssertionError)
             false
         else
             true
         end
-    end
+    end; notify(closedsliders)
     BCJMetal[] = s; notify(BCJMetal)
     if s == BCJ.DK
         nequations[] = 10; notify(nequations)
@@ -567,19 +570,25 @@ on(modelselection_menu.selection) do s
             SliderGrid(grid_sliders[][ 9,  3][ 2,  1], (label=L"C_{18}", range=range(0., 5C_0[][18]; length=1_000), format="{:.3e}", startvalue=C_0[][18])), # , width=0.4w[]))
         ]; notify(sg_sliders)
     end
-    if closedsliders
-        screen_sliders[] = GLMakie.Screen(; title="Sliders", focus_on_show=true); notify(screen_sliders)
-        display(screen_sliders[], g)
+    if closedsliders[]
+        if !GLMakie.isopen(screen_sliders[]) && do_opensliders
+            screen_sliders[] = GLMakie.Screen(; title="Sliders", focus_on_show=true); notify(screen_sliders)
+            display(screen_sliders[], g)
+        end
     end
 end
 ### show sliders
 on(showsliders_button.clicks) do click
+    closedsliders[] = false; notify(closedsliders)
     screen_sliders[] = GLMakie.Screen(; title="Sliders", focus_on_show=true); notify(screen_sliders)
     display(screen_sliders[], g)
 end
 ### scroll sliders window
 on(events(g).scroll) do scroll
     translate!(Accum, g.scene, 2 .* map(-, scroll))
+end
+on(events(g).window_open) do op
+    closedsliders[] = !op; notify(closedsliders)
 end
 ### update curves from sliders
 @lift for (i, sgs) in enumerate($sg_sliders)
