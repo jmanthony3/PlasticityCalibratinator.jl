@@ -11,4 +11,12 @@ export bcjmetalcalibration_update!
 export update!
 export reset_sliders!
 
+include("BCJCalibratinatorJohnsonCookExt.jl")
+export JCExperimentalData
+export jccalibration_init
+export jccalibration_kernel
+export jccalibration_update!
+export plot_sets!
+export update!
+
 end

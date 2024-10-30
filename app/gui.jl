@@ -44,20 +44,44 @@ C_0         = @lift Vector{Float64}(undef, $nsliders)
 include("filepaths.jl")
 propsfile   = Observable(propsfile) # trying to switch over to observable
 params      = @lift begin
-    df          = CSV.read($propsfile, DataFrame; header=true, delim=',', types=[String, Float64])
-    rowsofconstants = findall(occursin.(r"C\d{2}", df[!, "Comment"]))
+    df  = CSV.read($propsfile, DataFrame; header=["key", "value"], skipto=2, delim=',', types=[String, Float64])
+    rowsofconstants = if BCJMetal[] <: BCJ.BCJMetal
+        findall(occursin.(r"C\d{2}", df[!, "key"]))
+    elseif BCJMetal[] <: BCJ.JC
+        findall(occursin.(r"^(A|B|n|C|m)$", df[!, "key"]))
+    end
     nsliders[] = length(rowsofconstants); notify(nsliders)
     C_0[] = Vector{Float64}(undef, nsliders[]); notify(C_0)
-    C_0[][rowsofconstants] .= df[!, "For Calibration with vumat"][rowsofconstants]; notify(C_0)
-    bulk_mod    = df[!, "For Calibration with vumat"][findfirst(occursin("Bulk Mod"), df[!, "Comment"])]
-    shear_mod   = df[!, "For Calibration with vumat"][findfirst(occursin("Shear Mod"), df[!, "Comment"])]
-    dict = Dict( # collect as dictionary
-        "bulk_mod"  => bulk_mod,
-        "shear_mod" => shear_mod)
-    for (i, c) in enumerate(C_0[])
-        dict[BCJinator.constant_string(i)] = c
+    C_0[][rowsofconstants] .= df[!, "value"][rowsofconstants]; notify(C_0)
+    if BCJMetal[] <: BCJ.BCJMetal
+        bulk_mod    = df[!, "value"][findfirst(occursin("Bulk Mod"), df[!, "key"])]
+        shear_mod   = df[!, "value"][findfirst(occursin("Shear Mod"), df[!, "key"])]
+        dict = Dict( # collect as dictionary
+            "bulk_mod"  => bulk_mod,
+            "shear_mod" => shear_mod)
+        for (i, c) in enumerate(C_0[])
+            dict[BCJinator.constant_string(i)] = c
+        end
+        dict
+    elseif BCJMetal[] <: BCJ.JC
+        A   = df[!, "value"][findfirst(occursin("A"),  df[!, "key"])]
+        B   = df[!, "value"][findfirst(occursin("B"),  df[!, "key"])]
+        n   = df[!, "value"][findfirst(occursin("n"), df[!, "key"])]
+        C   = df[!, "value"][findfirst(occursin("C"),  df[!, "key"])]
+        m   = df[!, "value"][findfirst(occursin("m"),  df[!, "key"])]
+        Tr  = df[!, "value"][findfirst(occursin("Tr"),  df[!, "key"])]
+        Tm  = df[!, "value"][findfirst(occursin("Tm"),  df[!, "key"])]
+        er0 = df[!, "value"][findfirst(occursin("er0"), df[!, "key"])]
+        Dict( # collect as dictionary
+            "A"     => A,
+            "B"     => B,
+            "n"     => n,
+            "C"     => C,
+            "m"     => m,
+            "Tr"    => Tr,
+            "Tm"    => Tm,
+            "er0"   => er0)
     end
-    dict
 end
 # ------------------------------------------------
 # store stress-strain data and corresponding test conditions (temp and strain rate)
@@ -82,7 +106,8 @@ dataseries  = Observable(BCJinator.dataseries_init(bcj[].nsets, bcj[].test_data,
 # renew screens
 GLMakie.closeall()
 screen_main = GLMakie.Screen(; title="BCJ", fullscreen=true, focus_on_show=true)
-# screen_sliders = GLMakie.Screen(; title="Sliders", focus_on_show=true)
+screen_sliders = Observable(GLMakie.Screen(; title="Sliders", focus_on_show=true))
+GLMakie.close(screen_sliders[])
 # screen_isvs = GLMakie.Screen(; title="ISVs") # , focus_on_show=true)
 ## top-level figure
 # figure_padding=(plot_left, plot_right, plot_bot, plot_top)
@@ -133,7 +158,7 @@ b = GridLayout(f[ 2,  1], 1, 2)
 ba = GridLayout(b[ 1,  1], 3, 1)
 baa = GridLayout(ba[1, 1], 1, 1)
 modelselection_title_label  = Label(baa[ 1,  1], "Model Selection")
-modelselection_menu         = Menu(baa[ 1,  2], options=zip(["Bammann1990Modeling", "DK"], [BCJ.Bammann1990Modeling, BCJ.DK]), default="DK")
+modelselection_menu         = Menu(baa[ 1,  2], options=zip(["Bammann1990Modeling", "DK", "JohnsonCook"], [BCJ.Bammann1990Modeling, BCJ.DK, BCJ.JC]), default="DK")
 characteristic_equations = Observable([
     # plasticstrainrate
     L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ (1 - \phi)V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'",
@@ -207,48 +232,6 @@ depeqs_labels = Observable([
     Label(grid_sliders[][10,  2], dependence_equations[][10]; halign=:left)
 ])
 # make a slider for each constant
-# # V
-# sg_C01      = SliderGrid(grid_sliders[][ 1,  3][ 1,  1], (label=L"C_{ 1}", range=range(0., 5C_0[][ 1]; length=1_000), format="{:.3e}", startvalue=C_0[][ 1])) # , width=0.4w[]))
-# sg_C02      = SliderGrid(grid_sliders[][ 1,  3][ 2,  1], (label=L"C_{ 2}", range=range(0., 5C_0[][ 2]; length=1_000), format="{:.3e}", startvalue=C_0[][ 2])) # , width=0.4w[]))
-# # Y
-# sg_C03      = SliderGrid(grid_sliders[][ 2,  3][ 1,  1], (label=L"C_{ 3}", range=range(0., 5C_0[][ 3]; length=1_000), format="{:.3e}", startvalue=C_0[][ 3])) # , width=0.4w[]))
-# sg_C04      = SliderGrid(grid_sliders[][ 2,  3][ 2,  1], (label=L"C_{ 4}", range=range(0., 5C_0[][ 4]; length=1_000), format="{:.3e}", startvalue=C_0[][ 4])) # , width=0.4w[]))
-# # f
-# sg_C05      = SliderGrid(grid_sliders[][ 3,  3][ 1,  1], (label=L"C_{ 5}", range=range(0., 5C_0[][ 5]; length=1_000), format="{:.3e}", startvalue=C_0[][ 5])) # , width=0.4w[]))
-# sg_C06      = SliderGrid(grid_sliders[][ 3,  3][ 2,  1], (label=L"C_{ 6}", range=range(0., 5C_0[][ 6]; length=1_000), format="{:.3e}", startvalue=C_0[][ 6])) # , width=0.4w[]))
-# # rd
-# sg_C07      = SliderGrid(grid_sliders[][ 4,  3][ 1,  1], (label=L"C_{ 7}", range=range(0., 5C_0[][ 7]; length=1_000), format="{:.3e}", startvalue=C_0[][ 7])) # , width=0.4w[]))
-# sg_C08      = SliderGrid(grid_sliders[][ 4,  3][ 2,  1], (label=L"C_{ 8}", range=range(0., 5C_0[][ 8]; length=1_000), format="{:.3e}", startvalue=C_0[][ 8])) # , width=0.4w[]))
-# # h
-# sg_C09      = SliderGrid(grid_sliders[][ 5,  3][ 1,  1], (label=L"C_{ 9}", range=range(0., 5C_0[][ 9]; length=1_000), format="{:.3e}", startvalue=C_0[][ 9])) # , width=0.4w[]))
-# sg_C10      = SliderGrid(grid_sliders[][ 5,  3][ 2,  1], (label=L"C_{10}", range=range(0., 5C_0[][10]; length=1_000), format="{:.3e}", startvalue=C_0[][10])) # , width=0.4w[]))
-# # rs
-# sg_C11      = SliderGrid(grid_sliders[][ 6,  3][ 1,  1], (label=L"C_{11}", range=range(0., 5C_0[][11]; length=1_000), format="{:.3e}", startvalue=C_0[][11])) # , width=0.4w[]))
-# sg_C12      = SliderGrid(grid_sliders[][ 6,  3][ 2,  1], (label=L"C_{12}", range=range(0., 5C_0[][12]; length=1_000), format="{:.3e}", startvalue=C_0[][12])) # , width=0.4w[]))
-# # Rd
-# sg_C13      = SliderGrid(grid_sliders[][ 7,  3][ 1,  1], (label=L"C_{13}", range=range(0., 5C_0[][13]; length=1_000), format="{:.3e}", startvalue=C_0[][13])) # , width=0.4w[]))
-# sg_C14      = SliderGrid(grid_sliders[][ 7,  3][ 2,  1], (label=L"C_{14}", range=range(0., 5C_0[][14]; length=1_000), format="{:.3e}", startvalue=C_0[][14])) # , width=0.4w[]))
-# # H
-# sg_C15      = SliderGrid(grid_sliders[][ 8,  3][ 1,  1], (label=L"C_{15}", range=range(0., 5C_0[][15]; length=1_000), format="{:.3e}", startvalue=C_0[][15])) # , width=0.4w[]))
-# sg_C16      = SliderGrid(grid_sliders[][ 8,  3][ 2,  1], (label=L"C_{16}", range=range(0., 5C_0[][16]; length=1_000), format="{:.3e}", startvalue=C_0[][16])) # , width=0.4w[]))
-# # Rs
-# sg_C17      = SliderGrid(grid_sliders[][ 9,  3][ 1,  1], (label=L"C_{17}", range=range(0., 5C_0[][17]; length=1_000), format="{:.3e}", startvalue=C_0[][17])) # , width=0.4w[]))
-# sg_C18      = SliderGrid(grid_sliders[][ 9,  3][ 2,  1], (label=L"C_{18}", range=range(0., 5C_0[][18]; length=1_000), format="{:.3e}", startvalue=C_0[][18])) # , width=0.4w[]))
-# # Yadj
-# sg_C19      = SliderGrid(grid_sliders[][10,  3][ 1,  1], (label=L"C_{19}", range=range(0., 5C_0[][19]; length=1_000), format="{:.3e}", startvalue=C_0[][19])) # , width=0.4w[]))
-# sg_C20      = SliderGrid(grid_sliders[][10,  3][ 2,  1], (label=L"C_{20}", range=range(0., 5C_0[][20]; length=1_000), format="{:.3e}", startvalue=C_0[][20])) # , width=0.4w[]))
-# sg_sliders  = [ # collect sliders
-#     sg_C01, sg_C02, # V
-#     sg_C03, sg_C04, # Y
-#     sg_C05, sg_C06, # f
-#     sg_C07, sg_C08, # rd
-#     sg_C09, sg_C10, # h
-#     sg_C11, sg_C12, # rs
-#     sg_C13, sg_C14, # Rd
-#     sg_C15, sg_C16, # H
-#     sg_C17, sg_C18, # Rs
-#     sg_C19, sg_C20  # Yadj
-# ]
 sg_sliders = Observable([
     # V
     SliderGrid(grid_sliders[][ 1,  3][ 1,  1], (label=L"C_{ 1}", range=range(0., 5C_0[][ 1]; length=1_000), format="{:.3e}", startvalue=C_0[][ 1])), # , width=0.4w[]))
@@ -355,26 +338,54 @@ end
 ### update input parameters to calibrate
 on(buttons_updateinputs.clicks) do click
     empty!(ax); !isnothing(leg[]) ? delete!(leg[]) : nothing;   notify(leg)
-    empty!(ax_isv); !isnothing(leg_isv[]) ? delete!(leg_isv[]) : nothing; notify(leg_isv)
     BCJinator.reset_sliders!(params, sg_sliders, C_0, nsliders)
-    Plot_ISVs[] = begin
-        [Symbol(s[2:end]) for s in split(Plot_ISVs_textbox.displayed_string[], r"(,|;|\s)")]
-    end;                                                        notify(Plot_ISVs)
     incnum[] = parse(Int64, incnum_textbox.displayed_string[]); notify(incnum)
-    istate[] = begin
-        if loaddir_axial_toggle.active[]
-            1
-        elseif loaddir_torsion_toggle.active[]
-            2
-        else
-            error("'Tension/Compression' or 'Torsion' needs to be toggled on.")
-        end
-    end;                                                        notify(istate)
-    bcj[] = BCJinator.bcjmetalcalibration_init(files[], incnum[], istate[], params[], MPa, BCJMetal[]); notify(bcj)
-    dataseries[] = BCJinator.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs[]); notify(dataseries)
-    BCJinator.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
+    if BCJMetal[] <: BCJ.BCJMetal
+        empty!(ax_isv); !isnothing(leg_isv[]) ? delete!(leg_isv[]) : nothing; notify(leg_isv)
+        Plot_ISVs[] = begin
+            [Symbol(s[2:end]) for s in split(Plot_ISVs_textbox.displayed_string[], r"(,|;|\s)")]
+        end;                                                        notify(Plot_ISVs)
+        istate[] = begin
+            if loaddir_axial_toggle.active[]
+                1
+            elseif loaddir_torsion_toggle.active[]
+                2
+            else
+                error("'Tension/Compression' or 'Torsion' needs to be toggled on.")
+            end
+        end;                                                        notify(istate)
+        bcj[] = BCJinator.bcjmetalcalibration_init(files[], incnum[], istate[], params[], MPa, BCJMetal[]); notify(bcj)
+        dataseries[] = BCJinator.dataseries_init(bcj[].nsets, bcj[].test_data, Plot_ISVs[]); notify(dataseries)
+        BCJinator.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
+        !isnothing(leg_isv) ? (leg_isv[] = axislegend(ax_isv, position=:lt)) : nothing; notify(leg_isv)
+    elseif BCJMetal[] <: BCJ.JC
+        params[]["A"] = C_0[][1]; notify(params)
+        params[]["B"] = C_0[][2]; notify(params)
+        params[]["n"] = C_0[][3]; notify(params)
+        params[]["C"] = C_0[][4]; notify(params)
+        params[]["m"] = C_0[][5]; notify(params)
+        global bcj = Observable(BCJinator.jccalibration_init(files[], incnum[], params[], MPa)) # ; notify(bcj)
+        dataseries[] = BCJinator.dataseries_init(BCJMetal[], bcj[].nsets, bcj[].test_data); notify(dataseries)
+        BCJinator.plot_sets!(ax, dataseries[], bcj[], MPa)
+    end
     !isnothing(leg) ? (leg[] = axislegend(ax, position=:rb)) : nothing; notify(leg)
-    !isnothing(leg_isv) ? (leg_isv[] = axislegend(ax_isv, position=:lt)) : nothing; notify(leg_isv)
+    ### update curves from sliders
+    @lift for (i, sgs) in enumerate($sg_sliders)
+        on(only(sgs.sliders).value) do val
+            # redefine params with new slider values
+            params[][BCJinator.constant_string(i)] = to_value(val);       notify(params)
+            if BCJMetal[] <: BCJ.BCJMetal
+                BCJinator.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], BCJMetal[])
+            elseif BCJMetal[] <: BCJ.JC
+                params[]["A"] = params[]["C01"]; notify(params)
+                params[]["B"] = params[]["C02"]; notify(params)
+                params[]["n"] = params[]["C03"]; notify(params)
+                params[]["C"] = params[]["C04"]; notify(params)
+                params[]["m"] = params[]["C05"]; notify(params)
+                BCJinator.update!(dataseries[], bcj[], incnum[], MPa)
+            end
+        end
+    end
 end
 
 ## interactivity
@@ -399,6 +410,10 @@ on(modelselection_menu.selection) do s
     BCJMetal[] = s; notify(BCJMetal)
     if s == BCJ.DK
         nequations[] = 10; notify(nequations)
+        for c in contents(bab[])
+            delete!(c)
+        end; trim!(bab[])
+        bab[] = GridLayout(ba[2, 1], 5, 1); notify(bab)
         characteristic_equations[] = [
             # plasticstrainrate
             L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ (1 - \phi)V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'",
@@ -411,10 +426,17 @@ on(modelselection_menu.selection) do s
             # initialyieldstressbeta
             L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)",
         ]; notify(characteristic_equations)
-        for (lab, eq) in zip(chareqs_labels[], characteristic_equations[])
-            lab.text[] = eq
-        end; notify(chareqs_labels)
-        empty!(g); grid_sliders[] = GridLayout(g[1, 1], length(dependence_equations[]), 3); notify(grid_sliders)
+        # for (lab, eq) in zip(chareqs_labels[], characteristic_equations[])
+        #     lab.text[] = eq
+        # end; notify(chareqs_labels)
+        chareqs_labels[] = [
+            Label(bab[][ 1,  1], characteristic_equations[][1]; halign=:left)
+            Label(bab[][ 2,  1], characteristic_equations[][2]; halign=:left)
+            Label(bab[][ 3,  1], characteristic_equations[][3]; halign=:left)
+            Label(bab[][ 4,  1], characteristic_equations[][4]; halign=:left)
+            Label(bab[][ 5,  1], characteristic_equations[][5]; halign=:left)
+        ]; notify(chareqs_labels)
+        empty!(g); grid_sliders[] = GridLayout(g[1, 1], nequations[], 3); notify(grid_sliders)
         dependence_equations[] = [
             L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)", # textbox_V
             L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)", # textbox_Y
@@ -488,6 +510,10 @@ on(modelselection_menu.selection) do s
         ]; notify(sg_sliders)
     elseif s == BCJ.Bammann1990Modeling
         nequations[] = 9; notify(nequations)
+        for c in contents(bab[])
+            delete!(c)
+        end; trim!(bab[])
+        bab[] = GridLayout(ba[2, 1], 5, 1); notify(bab)
         characteristic_equations[] = [
             # plasticstrainrate
             L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'"
@@ -500,10 +526,14 @@ on(modelselection_menu.selection) do s
             # initialyieldstressbeta
             L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)"
         ]; notify(characteristic_equations)
-        for (lab, eq) in zip(chareqs_labels[], characteristic_equations[])
-            lab.text[] = eq
-        end; notify(chareqs_labels)
-        empty!(g); grid_sliders[] = GridLayout(g[1, 1], length(dependence_equations[]), 3); notify(grid_sliders)
+        chareqs_labels[] = [
+            Label(bab[][ 1,  1], characteristic_equations[][1]; halign=:left)
+            Label(bab[][ 2,  1], characteristic_equations[][2]; halign=:left)
+            Label(bab[][ 3,  1], characteristic_equations[][3]; halign=:left)
+            Label(bab[][ 4,  1], characteristic_equations[][4]; halign=:left)
+            Label(bab[][ 5,  1], characteristic_equations[][5]; halign=:left)
+        ]; notify(chareqs_labels)
+        empty!(g); grid_sliders[] = GridLayout(g[1, 1], nequations[], 3); notify(grid_sliders)
         dependence_equations[] = [
             L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)", # textbox_V
             L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)", # textbox_Y
@@ -569,6 +599,50 @@ on(modelselection_menu.selection) do s
             SliderGrid(grid_sliders[][ 9,  3][ 1,  1], (label=L"C_{17}", range=range(0., 5C_0[][17]; length=1_000), format="{:.3e}", startvalue=C_0[][17])), # , width=0.4w[]))
             SliderGrid(grid_sliders[][ 9,  3][ 2,  1], (label=L"C_{18}", range=range(0., 5C_0[][18]; length=1_000), format="{:.3e}", startvalue=C_0[][18])), # , width=0.4w[]))
         ]; notify(sg_sliders)
+    elseif s == BCJ.JC
+        nequations[] = 5; notify(nequations)
+        for c in contents(bab[])
+            delete!(c)
+        end; trim!(bab[])
+        bab[] = GridLayout(ba[2, 1], 1, 1); notify(bab)
+        characteristic_equations[] = [
+            L"\sigma = (A + B\mathrm{exp}(n)) * (1 + C*\log(\epsilon^{*})) * (1 - (T^{*})^{m}))"
+        ]; notify(characteristic_equations)
+        chareqs_labels[] = [
+            Label(bab[][ 1,  1], characteristic_equations[][1]; halign=:left)
+        ]; notify(chareqs_labels)
+        empty!(g); grid_sliders[] = GridLayout(g[1, 1], nequations[], 3); notify(grid_sliders)
+        dependence_equations[] = [
+            L"A",
+            L"B",
+            L"n",
+            L"C",
+            L"m"
+        ]; notify(dependence_equations)
+        # for (lab, eq) in zip(depeqs_labels[], dependence_equations[])
+        #     lab.text[] = eq
+        # end; notify(depeqs_labels)
+        depeqs_labels[] = [
+            Label(grid_sliders[][ 1,  2], dependence_equations[][ 1]; halign=:left),
+            Label(grid_sliders[][ 2,  2], dependence_equations[][ 2]; halign=:left),
+            Label(grid_sliders[][ 3,  2], dependence_equations[][ 3]; halign=:left),
+            Label(grid_sliders[][ 4,  2], dependence_equations[][ 4]; halign=:left),
+            Label(grid_sliders[][ 5,  2], dependence_equations[][ 5]; halign=:left)
+        ]; notify(depeqs_labels)
+        toggles[]     = [ # collect toggles
+            Toggle(grid_sliders[][ 1,  1], active=false)
+            Toggle(grid_sliders[][ 2,  1], active=false)
+            Toggle(grid_sliders[][ 3,  1], active=false)
+            Toggle(grid_sliders[][ 4,  1], active=false)
+            Toggle(grid_sliders[][ 5,  1], active=false)
+        ]; notify(toggles)
+        sg_sliders[] = [
+            SliderGrid(grid_sliders[][ 1,  3][ 1,  1], (label=L"A", range=range(0., 5C_0[][ 1]; length=1_000), format="{:.3e}", startvalue=C_0[][ 1])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 2,  3][ 1,  1], (label=L"B", range=range(0., 5C_0[][ 2]; length=1_000), format="{:.3e}", startvalue=C_0[][ 2])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 3,  3][ 1,  1], (label=L"n", range=range(0., 5C_0[][ 3]; length=1_000), format="{:.3e}", startvalue=C_0[][ 3])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 4,  3][ 1,  1], (label=L"C", range=range(0., 5C_0[][ 4]; length=1_000), format="{:.3e}", startvalue=C_0[][ 4])), # , width=0.4w[]))
+            SliderGrid(grid_sliders[][ 5,  3][ 1,  1], (label=L"m", range=range(0., 5C_0[][ 5]; length=1_000), format="{:.3e}", startvalue=C_0[][ 5])), # , width=0.4w[]))
+        ]; notify(sg_sliders)
     end
     if closedsliders[]
         if !GLMakie.isopen(screen_sliders[]) && do_opensliders
@@ -590,14 +664,18 @@ end
 on(events(g).window_open) do op
     closedsliders[] = !op; notify(closedsliders)
 end
-### update curves from sliders
-@lift for (i, sgs) in enumerate($sg_sliders)
-    on(only(sgs.sliders).value) do val
-        # redefine params with new slider values
-        params[][BCJinator.constant_string(i)] = to_value(val);       notify(params)
-        BCJinator.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], BCJMetal[])
-    end
-end
+# ### update curves from sliders
+# @lift for (i, sgs) in enumerate($sg_sliders)
+#     on(only(sgs.sliders).value) do val
+#         # redefine params with new slider values
+#         params[][BCJinator.constant_string(i)] = to_value(val);       notify(params)
+#         if BCJMetal[] <: BCJ.BCJMetal
+#             BCJinator.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], BCJMetal[])
+#         elseif BCJMetal[] <: BCJ.JC
+#             BCJinator.update!(dataseries[], bcj[], incnum[], MPa)
+#         end
+#     end
+# end
 
 ## buttons
 ### calibrate parameters

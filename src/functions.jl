@@ -18,7 +18,7 @@ constant_string(i) = (i <= 9 ? "C0$i" : "C$i")
 # lines[2] = model (to be updated)
 # lines[3] = alpha model (to be updated)
 # lines[4] = kappa model (to be updated)
-function dataseries_init(nsets, test_data, plot_isvs)
+function dataseries_init(nsets::Integer, test_data, plot_isvs)
     dataseries = if !isempty(plot_isvs)
         # [[], [], [], [], [], []]
         [[], [], [], []]
@@ -53,10 +53,10 @@ function bcjmetalcalibration_kernel(test_data, test_cond, incnum, istate, params
     bcj_loading     = BCJMetalStrainControl(
         test_cond["Temp"][i], test_cond["StrainRate"][i],
         emax, incnum, istate, params)
-    bcj_configuration = bcjmetalreferenceconfiguration(ISV_Model, bcj_loading)
-    bcj_reference   = bcj_configuration[1]
-    bcj_current     = bcj_configuration[2]
-    bcj_history     = bcj_configuration[3]
+    bcj_configuration   = bcjmetalreferenceconfiguration(ISV_Model, bcj_loading)
+    bcj_reference       = bcj_configuration[1]
+    bcj_current         = bcj_configuration[2]
+    bcj_history         = bcj_configuration[3]
     solve!(bcj_current, bcj_history)
     ϵ__         = bcj_history.ϵ__
     σ__         = bcj_history.σ__
@@ -102,7 +102,7 @@ function bcjmetalcalibration_init(files, incnum, istate, params, Scale_MPa, ISV_
             println("ERROR! Data from  '", file , "'  has bad stress-strain data lengths")
         end
 
-        #store the stress-strain data
+        # store the stress-strain data
         # push!(test_cond["StrainRate"],  first(er))
         # push!(test_cond["Temp"],        first(T))
         # push!(test_cond["Name"],        first(name))
