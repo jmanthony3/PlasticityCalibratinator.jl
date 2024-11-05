@@ -1,18 +1,18 @@
 using Pkg; Pkg.precompile()
 using Documenter
-using BCJCalibratinator
+using PlasticityCalibratinator
 
-DocMeta.setdocmeta!(BCJCalibratinator, :DocTestSetup, :(using BCJCalibratinator); recursive=true)
+DocMeta.setdocmeta!(PlasticityCalibratinator, :DocTestSetup, :(using PlasticityCalibratinator); recursive=true)
 
 makedocs(;
-    modules=[BCJCalibratinator],
+    modules=[PlasticityCalibratinator],
     authors="Joby M. Anthony III, Daniel S. Kenney",
-    repo="https://github.com/jmanthony3/BCJCalibratinator.jl/blob/{commit}{path}#{line}",
-    sitename="BCJCalibratinator.jl",
+    repo="https://github.com/jmanthony3/PlasticityCalibratinator.jl/blob/{commit}{path}#{line}",
+    sitename="PlasticityCalibratinator.jl",
     doctest=false,
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://jmanthony3.github.io/BCJCalibratinator.jl",
+        canonical="https://jmanthony3.github.io/PlasticityCalibratinator.jl",
         edit_link="main",
         assets=String[],
     ),
@@ -22,6 +22,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/jmanthony3/BCJCalibratinator.jl",
+    repo="github.com/jmanthony3/PlasticityCalibratinator.jl",
     devbranch="main",
 )

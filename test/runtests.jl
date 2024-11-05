@@ -1,6 +1,6 @@
-using BCJCalibratinator
+using PlasticityCalibratinator
 using Test
 
-@testset verbose=true "BCJCalibratinator.jl" begin
+@testset verbose=true "PlasticityCalibratinator.jl" begin
     # Write your tests here.
 end

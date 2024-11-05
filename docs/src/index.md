@@ -1,8 +1,8 @@
-# BCJCalibratinator
-Documentation for [BCJCalibratinator](https://github.com/jmanthony3/BCJCalibratinator.jl).
+# PlasticityCalibratinator
+Documentation for [PlasticityCalibratinator](https://github.com/jmanthony3/PlasticityCalibratinator.jl).
 
 ```@contents
-Modules = [BCJCalibratinator]
+Modules = [PlasticityCalibratinator]
 Pages   = [
 ]
 Depth   = 1
@@ -11,7 +11,7 @@ Depth   = 1
 ## Index
 ```@index
 Modules = [
-    BCJCalibratinator]
+    PlasticityCalibratinator]
 Pages   = [
 ]
 ```
