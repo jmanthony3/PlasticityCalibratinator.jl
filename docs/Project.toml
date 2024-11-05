@@ -1,3 +1,3 @@
 [deps]
-BCJCalibratinator = "a89bb55e-884e-48c3-ba05-e3917bd289c9"
+PlasticityCalibratinator = "a89bb55e-884e-48c3-ba05-e3917bd289c9"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"

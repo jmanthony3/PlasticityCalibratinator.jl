@@ -66,6 +66,6 @@ jobs:
   #       shell: julia --project=docs --color=yes {0}
   #       run: |
   #         using Documenter: DocMeta, doctest
-  #         using BCJCalibratinator
-  #         DocMeta.setdocmeta!(BCJCalibratinator, :DocTestSetup, :(using BCJCalibratinator); recursive=true)
-  #         doctest(BCJCalibratinator)
+  #         using PlasticityCalibratinator
+  #         DocMeta.setdocmeta!(PlasticityCalibratinator, :DocTestSetup, :(using PlasticityCalibratinator); recursive=true)
+  #         doctest(PlasticityCalibratinator)

@@ -10,7 +10,7 @@ using NativeFileDialog
 using Optim
 
 import BammannChiesaJohnsonPlasticity as BCJ
-import BCJCalibratinator as BCJinator
+import PlasticityCalibratinator as BCJinator
 
 
 set_theme!(theme_latexfonts())
