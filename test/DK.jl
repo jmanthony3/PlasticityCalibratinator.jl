@@ -274,7 +274,7 @@ function PlasticityCalibratinator.plot_sets!(::Type{DK}, modelcalibration)
         println(i)
         scatter!(modelcalibration[].ax,    @lift(Point2f.($(modelcalibration[].dataseries[1][i]).x, $(modelcalibration[].dataseries[1][i]).y)),
             color=i, colormap=:viridis, colorrange=(1, modelcalibration[].modeldata.nsets), label="Data - " * modelcalibration[].modeldata.test_cond["Name"][i])
-        lines!(modelcalibration[].ax,      @lift(Point2f.($(modelcalibration[].dataseries[2][i]).x, $(modelcalibration[].dataseries[2][i]).y .* modelcalibration[].modeldata.stressscale)),
+        lines!(modelcalibration[].ax,      @lift(Point2f.($(modelcalibration[].dataseries[2][i]).x, $(modelcalibration[].dataseries[2][i]).y)),
             color=i, colormap=:viridis, colorrange=(1, modelcalibration[].modeldata.nsets), label="VM Model - " * modelcalibration[].modeldata.test_cond["Name"][i])
         if !isempty(Plot_ISVs)
             scatter!(modelcalibration[].ax_isv,    @lift(Point2f.($(modelcalibration[].dataseries[3][i]).x, $(modelcalibration[].dataseries[3][i]).y)),
@@ -294,7 +294,7 @@ function PlasticityCalibratinator.calibration_update!(::Type{DK}, i, BCJ::ModelD
         BCJ.materialproperties[key] = val
     end
     # sol = jccalibration_kernel(jc.test_data, jc.test_cond, jc.incnum, jc.materialproperties, i)
-    sol = bcjmetalcalibration_kernel(BCJ.test_data, BCJ.test_cond, BCJ.incnum, Int64(BCJ.loading_axial), BCJ.materialproperties, i, DK)
+    sol = bcjmetalcalibration_kernel(BCJ.test_data, BCJ.test_cond, BCJ.incnum, Int64(BCJ.modelinputs.loading_axial), BCJ.materialproperties, i, DK)
     BCJ.test_data["Model_S"][i]    .= sol.σ
     BCJ.test_data["Model_VM"][i]   .= sol.σvM
     BCJ.test_data["Model_alph"][i] .= sol.α

@@ -9,8 +9,8 @@ using InteractiveUtils
 
 set_theme!(theme_latexfonts())
 
-characteristicequations(::Type{<:Plasticity})::Vector{Union{String, LaTeXString}} = [""]
-dependenceequations(::Type{<:Plasticity})::Vector{Union{String, LaTeXString}} = [""]
+characteristicequations(::Type{<:Plasticity})::Vector{Union{Char, String, LaTeXString}} = [' ']
+dependenceequations(::Type{<:Plasticity})::Vector{Union{Char, String, LaTeXString}} = [' ']
 dependencesliders(::Type{<:Plasticity})::Vector{Any} = Any[]
 
 mutable struct ModelInputs{T<:Plasticity}
@@ -21,8 +21,8 @@ mutable struct ModelInputs{T<:Plasticity}
     loading_torsional           ::Bool
     incnum                      ::Integer
     stressscale                 ::AbstractFloat
-    characteristic_equations    ::Vector{Union{String, LaTeXString}}
-    dependence_equations        ::Vector{Union{String, LaTeXString}}
+    characteristic_equations    ::Vector{Union{Char, String, LaTeXString}}
+    dependence_equations        ::Vector{Union{Char, String, LaTeXString}}
     dependence_sliders
 end
 
@@ -121,11 +121,35 @@ function sg_slider!(grid, labels)
         println(@__LINE__, ", Returning...")
         return SliderGrid(grid[1, 1], labels)
     else
-        for (i, label) in enumerate(labels)
+        return [begin
             println((i, label))
             sg_slider!(grid[ i,  1], label)
-        end
+        end for (i, label) in enumerate(labels)]
     end
+end
+collectragged!(dest, src) = begin
+    #= REPL[63]:1 =#
+    for element = src
+        #= REPL[63]:2 =#
+        issingleelement = try
+            isempty(size(element))
+        catch exc
+            if isa(exc, MethodError)
+                isa(element, SliderGrid)
+            end
+        end
+        if issingleelement
+            #= REPL[63]:3 =#
+            push!(dest, element)
+        else
+            #= REPL[63]:5 =#
+            collectragged!(dest, element)
+        end
+        #= REPL[63]:7 =#
+    end
+end
+collectragged(src) = begin
+    arr = []; collectragged!(arr, src); arr
 end
 
 function calibration_init(::Type{<:Plasticity}, args...; kwargs...) end
@@ -152,7 +176,7 @@ function reset_sliders!(sg_sliders, modeldata, modelcalibration)
             modelcalibration[].modeldata.params[key] = to_value(dict[key]);    notify(modelcalibration)
             set_close_to!(sgc.sliders[1], dict[key])
             sgc.sliders[1].value[] = to_value(dict[key]);   notify(sgc.sliders[1].value)
-        end, range(1, nsliders), materialconstants_index(modelcalibration[].modeldata.plasticmodelversion), dict, sg_sliders[])
+        end, range(1, nsliders), materialconstants_index(modelcalibration[].modeldata.plasticmodelversion), dict, collectragged(sg_sliders[]))
     return nothing
 end
 
@@ -434,8 +458,8 @@ function screenmain_inputs!(fig, f, w,
     loading_torsional[]         = loaddir_torsion_toggle.active[];                          notify(loading_torsional)
     incnum[]                    = parse(Int64, incnum_textbox.displayed_string[]);          notify(incnum)
     stressscale[]               = parse(Float64, stressscale_textbox.displayed_string[]);   notify(stressscale)
-    characteristic_equations[]  = characteristicequations(plasticmodelversion[]);           notify(characteristic_equations)
-    dependence_equations[]      = dependenceequations(plasticmodelversion[]);               notify(dependence_equations)
+    characteristic_equations  = characteristicequations(plasticmodelversion[]) # ;           notify(characteristic_equations)
+    dependence_equations      = dependenceequations(plasticmodelversion[]) # ;               notify(dependence_equations)
     dependence_sliders[]        = dependencesliders(plasticmodelversion[]);                 notify(dependence_sliders)
 
     # dynamic backend functions
@@ -456,7 +480,8 @@ function screenmain_inputs!(fig, f, w,
     return (modelversion_menu,
         propsfile_textbox, expdatasets_textbox,
         loaddir_axial_toggle, loaddir_torsion_toggle,
-        incnum_textbox, stressscale_textbox)
+        incnum_textbox, stressscale_textbox,
+        characteristic_equations, dependence_equations)
 end
 
 function screenmain_interactions!(f, g, h,
@@ -468,6 +493,7 @@ function screenmain_interactions!(f, g, h,
     # dependence_equations        = modelinputs[].dependence_equations
     # dependence_sliders          = modelinputs[].dependence_sliders
     # screenmain_plot!(f, g, modelinputs, modeldata, modelcalibration, sliders_sliders)
+    println(sliders_sliders)
     ### sub-figure for model selection, sliders, and plot
     f_b = GridLayout(f[ 1,  1], 3, 1)
     f_ba = GridLayout(f_b[1, 1], 1, 1)
@@ -516,10 +542,12 @@ function screenmain_interactions!(f, g, h,
         chareqs_labels[] = [
             chareq_label(f_bb[][i, 1], eq) for (i, eq) in enumerate(modelcalibration[].modeldata.modelinputs.characteristic_equations)]
         notify(chareqs_labels)
+        println(sliders_sliders)
         # screenmain_plot!(f, g, modelinputs, modeldata, modelcalibration, sliders_sliders)
     end
     ## show sliders
     on(showsliders_button.clicks) do click
+        println(sliders_sliders)
         main_sliders(h, modelcalibration, modeldata, sliders_sliders)
     end
     ## buttons
@@ -846,7 +874,7 @@ end
 
 function main_sliders(fig, modelcalibration, modeldata, sg_sliders)
     ### update curves from sliders
-    @lift for (key, sgs) in zip(materialconstants_index(modelcalibration[].modeldata.plasticmodelversion), $sg_sliders)
+    @lift for (key, sgs) in zip(materialconstants_index(modelcalibration[].modeldata.plasticmodelversion), collectragged($sg_sliders))
         on(only(sgs.sliders).value) do val
             # redefine materialproperties with new slider values
             modeldata[].params[key] = to_value(val); notify(modeldata)
@@ -897,8 +925,8 @@ function main()
     loading_torsional           = Observable(false)         # ::Bool
     incnum                      = Observable(200)           # ::Integer
     stressscale                 = Observable(1e6)           # ::AbstractFloat
-    characteristic_equations    = Observable([""])          # ::Vector{String}
-    dependence_equations        = Observable([""])          # ::Vector{String}
+    characteristic_equations    = [' ']          # ::Vector{String}
+    dependence_equations        = [' ']          # ::Vector{String}
     dependence_sliders          = Observable([])            # ::Any
     inputobjects                = screenmain_inputs!(fig, a, w,
         plasticmodelversion, propsfile, expdatasets,
@@ -914,12 +942,14 @@ function main()
     loaddir_torsion_toggle      = inputobjects[5]
     incnum_textbox              = inputobjects[6]
     stressscale_textbox         = inputobjects[7]
+    characteristic_equations    = inputobjects[8]
+    dependence_equations        = inputobjects[9]
     modelinputs                 = Observable(ModelInputs{plasticmodelversion[]}(
         plasticmodelversion[], propsfile[], expdatasets[],
         loading_axial[], loading_torsional[],
         incnum[], stressscale[],
-        characteristic_equations[],
-        dependence_equations[],
+        characteristic_equations,
+        dependence_equations,
         dependence_sliders[]
     ))
 
