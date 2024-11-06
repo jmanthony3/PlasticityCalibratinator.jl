@@ -271,7 +271,7 @@ function PlasticityCalibratinator.plot_sets!(::Type{DK}, modelcalibration)
     # ax, dataseries, Scale_MPa
     Plot_ISVs = []
     for i in range(1, modelcalibration[].modeldata.nsets)
-        println(i)
+        # println(i)
         scatter!(modelcalibration[].ax,    @lift(Point2f.($(modelcalibration[].dataseries[1][i]).x, $(modelcalibration[].dataseries[1][i]).y)),
             color=i, colormap=:viridis, colorrange=(1, modelcalibration[].modeldata.nsets), label="Data - " * modelcalibration[].modeldata.test_cond["Name"][i])
         lines!(modelcalibration[].ax,      @lift(Point2f.($(modelcalibration[].dataseries[2][i]).x, $(modelcalibration[].dataseries[2][i]).y)),
