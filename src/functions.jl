@@ -160,7 +160,10 @@ function update!(::Type{<:Plasticity}, args...; kwargs...) end
 
 function reset_sliders!(sg_sliders, modeldata, modelcalibration)
     # nsliders = sum(length, modelinputs[].dependence_sliders)
-    nsliders = count(x->isa(x, NamedTuple), modelcalibration[].modeldata.modelinputs.dependence_sliders)
+    # nsliders = count(x->isa(x, NamedTuple), modelcalibration[].modeldata.modelinputs.dependence_sliders)
+    # nsliders = count(x->isa(x, NamedTuple), collectragged(modelcalibration[].modeldata.modelinputs.dependence_sliders))
+    nsliders = length(collectragged(sg_sliders[]))
+    println(nsliders)
     dict = materialconstants(modelcalibration[].modeldata.plasticmodelversion) # sort(collect(modelcalibration[].modeldata.C_0), by=x->findfirst(x[1] .== materialconstants_index(modelcalibration[].modeldata.plasticmodelversion)))
     println(dict)
     # for (i, key, (k, v), sgc) in zip(range(1, nsliders), materialconstants_index(modelcalibration[].modeldata.plasticmodelversion), dict, sg_sliders[])
@@ -300,7 +303,10 @@ function update_inputs!(f, g,
     modelcalibration[].dataseries           = dataseries_init(modelinputs[].plasticmodelversion,
         modelcalibration[].modeldata.nsets, modelcalibration[].modeldata.test_data);                        notify(modelcalibration)
     plot_sets!(modelinputs[].plasticmodelversion, modelcalibration)
-    !isnothing(modelcalibration[].leg) ? (modelcalibration[].leg = axislegend(modelcalibration[].ax, position=:rb)) : nothing; notify(modelcalibration)
+    # println(modelcalibration[].modeldata.modelinputs.expdatasets)
+    # println(isempty(modelcalibration[].modeldata.modelinputs.expdatasets))
+    # !isnothing(modelcalibration[].leg) ? (modelcalibration[].leg = axislegend(modelcalibration[].ax, position=:rb)) : nothing; notify(modelcalibration)
+    first(modelcalibration[].modeldata.modelinputs.expdatasets) != "" ? (modelcalibration[].leg = axislegend(modelcalibration[].ax, position=:rb)) : nothing; notify(modelcalibration)
     # return nothing
     return modelinputs, modeldata, modelcalibration, sliders_sliders
 end
@@ -843,19 +849,21 @@ function screenmain_interactions!(f, g, h,
         # props_dir, props_name = dirname(propsfile), basename(propsfile)
         # "Save new props file"
         propsfile_new = save_file(; filterlist="csv")
-        dict = modelcalibration[].modeldata.materialproperties
-        for (key, val) in modelcalibration[].modeldata.params
-            dict[key] = val
+        if propsfile_new != ""
+            dict = modelcalibration[].modeldata.materialproperties
+            for (key, val) in modelcalibration[].modeldata.params
+                dict[key] = val
+            end
+            CSV.write(propsfile_new, DataFrame(dict))
+            println("New props file written to: \"", propsfile_new, "\"")
         end
-        CSV.write(propsfile_new, DataFrame(dict))
-        println("New props file written to: \"", propsfile_new, "\"")
     end
     ### export curves
     on(buttons_exportcurves.clicks) do click
         # props_dir, props_name = dirname(propsfile[]), basename(propsfile[])
         curvefile_new = save_file(; filterlist="csv")
         println([curvefile_new])
-        if !isempty(curvefile_new) || curvefile_new != ""
+        if curvefile_new != ""
             header, df = [], DataFrame()
             for (i, test_name, test_strain, test_stress) in zip(range(1, modelcalibration[].modeldata.nsets), modelcalibration[].modeldata.test_cond["Name"], modelcalibration[].modeldata.test_data["Model_E"], modelcalibration[].modeldata.test_data["Model_VM"])
                 push!(header, "strain-" * test_name)
@@ -927,7 +935,7 @@ function main()
     stressscale                 = Observable(1e6)           # ::AbstractFloat
     characteristic_equations    = [' ']          # ::Vector{String}
     dependence_equations        = [' ']          # ::Vector{String}
-    dependence_sliders          = Observable([])            # ::Any
+    dependence_sliders          = Observable([])            # ::Vector{Any}
     inputobjects                = screenmain_inputs!(fig, a, w,
         plasticmodelversion, propsfile, expdatasets,
         loading_axial, loading_torsional,
