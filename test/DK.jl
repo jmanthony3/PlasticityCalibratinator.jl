@@ -10,7 +10,7 @@ using BammannChiesaJohnsonPlasticity
 
 set_theme!(theme_latexfonts())
 
-PlasticityBase.materialproperties(::Type{DK}) = Dict(
+PlasticityCalibratinator.materialproperties(::Type{DK}) = Dict(
     # Comment,For Calibration with vumat
     "C01"       => 35016459.896579415,
     "C02"       => 323.93342698083165,
@@ -35,7 +35,7 @@ PlasticityBase.materialproperties(::Type{DK}) = Dict(
     "Bulk Mod"  => 159000000000.0,
     "Shear Mod" => 77000000000.0,
 )
-PlasticityBase.materialconstants(::Type{DK}) = Dict(
+PlasticityCalibratinator.materialconstants(::Type{DK}) = collect(
     "C01"       => 35016459.896579415,
     "C02"       => 323.93342698083165,
     "C03"       => 500340419.8337271,
@@ -57,35 +57,6 @@ PlasticityBase.materialconstants(::Type{DK}) = Dict(
     "C19"       => 1e-10,
     "C20"       => 1e-10,
 )
-PlasticityBase.materialconstants_index(::Type{DK}) = [
-    "C01",
-    "C02",
-    "C03",
-    "C04",
-    "C05",
-    "C06",
-    "C07",
-    "C08",
-    "C09",
-    "C10",
-    "C11",
-    "C12",
-    "C13",
-    "C14",
-    "C15",
-    "C16",
-    "C17",
-    "C18",
-    "C19",
-    "C20",
-]
-constantsrange_max = [
-    300.,   # A
-    400.,   # B
-    1.,     # n
-    0.1,    # C
-    0.5,    # m
-]
 
 PlasticityCalibratinator.characteristicequations(::Type{DK}) = [
     # plasticstrainrate
@@ -165,7 +136,7 @@ PlasticityCalibratinator.dependencesliders(::Type{DK})       = [
 ]
 
 # FORMATTING: test_data[i][[e_data,s_data] , [e_model,s_model] , [e_err, s_err]]
-function PlasticityCalibratinator.calibration_init(::Type{DK}, modelinputs::ModelInputs, params)::ModelData
+function PlasticityCalibratinator.modeldata(::Type{DK}, modelinputs::ModelInputs, params)::ModelData
     # files, incnum, params, Scale_MPa
     files = modelinputs.expdatasets
     incnum = modelinputs.incnum
@@ -245,7 +216,7 @@ function PlasticityCalibratinator.calibration_init(::Type{DK}, modelinputs::Mode
     return ModelData{DK}(DK, modelinputs, nsets, test_data, test_cond, params, deepcopy(materialconstants(DK)), deepcopy(materialconstants(DK)), incnum, Scale_MPa)
 end
 
-function PlasticityCalibratinator.dataseries_init(::Type{DK}, nsets, test_data)
+function PlasticityCalibratinator.plotdata_initialize(::Type{DK}, nsets, test_data)
     plot_isvs = []
     dataseries = if !isempty(plot_isvs)
         [[], [], [], []]
@@ -267,7 +238,7 @@ function PlasticityCalibratinator.dataseries_init(::Type{DK}, nsets, test_data)
     return dataseries
 end
 
-function PlasticityCalibratinator.plot_sets!(::Type{DK}, modelcalibration)
+function PlasticityCalibratinator.plotdata_insert!(::Type{DK}, modelcalibration)
     # ax, dataseries, Scale_MPa
     Plot_ISVs = []
     for i in range(1, modelcalibration[].modeldata.nsets)
@@ -289,25 +260,20 @@ function PlasticityCalibratinator.plot_sets!(::Type{DK}, modelcalibration)
     end
 end
 
-function PlasticityCalibratinator.calibration_update!(::Type{DK}, i, BCJ::ModelData)
-    for (key, val) in BCJ.params
-        BCJ.materialproperties[key] = val
-    end
-    # sol = jccalibration_kernel(jc.test_data, jc.test_cond, jc.incnum, jc.materialproperties, i)
-    sol = bcjmetalcalibration_kernel(BCJ.test_data, BCJ.test_cond, BCJ.incnum, Int64(BCJ.modelinputs.loading_axial), BCJ.materialproperties, i, DK)
-    BCJ.test_data["Model_S"][i]    .= sol.σ
-    BCJ.test_data["Model_VM"][i]   .= sol.σvM
-    BCJ.test_data["Model_alph"][i] .= sol.α
-    BCJ.test_data["Model_kap"][i]  .= sol.κ
-    return nothing
-end
-
-function PlasticityCalibratinator.update!(::Type{DK}, modelcalibration)
+function PlasticityCalibratinator.plotdata_update!(::Type{DK}, modelcalibration)
     Plot_ISVs = []
     # dataseries, incnum, Scale_MPa
     @sync @distributed for i in range(1, modelcalibration[].modeldata.nsets)
     # for i in range(1, modelcalibration.modeldata.nsets)
-        calibration_update!(DK, i, modelcalibration[].modeldata)
+        for (key, val) in BCJ.params
+            BCJ.materialproperties[key] = val
+        end
+        # sol = jccalibration_kernel(jc.test_data, jc.test_cond, jc.incnum, jc.materialproperties, i)
+        sol = plotdata_updatekernel(BCJ.test_data, BCJ.test_cond, BCJ.incnum, Int64(BCJ.modelinputs.loading_axial), BCJ.materialproperties, i, DK)
+        BCJ.test_data["Model_S"][i]    .= sol.σ
+        BCJ.test_data["Model_VM"][i]   .= sol.σvM
+        BCJ.test_data["Model_alph"][i] .= sol.α
+        BCJ.test_data["Model_kap"][i]  .= sol.κ
         modelcalibration[].dataseries[2][i][].y .= modelcalibration[].modeldata.test_data["Model_VM"][i]
         if !isempty(Plot_ISVs)
             modelcalibration[].dataseries[3][i][].y .= modelcalibration[].modeldata.test_data["Model_alph"][i]
