@@ -1,35 +1,43 @@
 module PlasticityCalibratinator
+# __precompile__(true)
 
-include("functions.jl")
-export characteristicequations
-export dependenceequations
-export dependencesliders
-export GUIEquations
+include("gui.jl")
 export ModelInputs
 export ModelData
 export ModelCalibration
-export constant_string
-export dataseries_init
-export calibration_kernel
-export calibration_init
-export calibration_update!
-export plot_sets!
-export update!
-export reset_sliders!
-export update_propsfile!
-export update_experimentaldata!
-export update_experimentaldata_draganddrop!
-export update_inputs!
-export depeq_label!
-export toggle!
-export sg_slider!
-export update_modelselection
-export calibrateconstantselection!
-export save_propsfile
-export save_experimentaldata
 export main
+public screen_main
+public screen_main_inputs!
+public screen_main_interactions!
 
-# include("figure.jl")
-# export main
+# include("gui_functions.jl")
+export materialproperties
+export materialconstants
+export materialdora
+export collect
+export characteristicequations
+export dependenceequations
+export dependencesliders
+export doraequations
+export dorasliders
+export modeldata
+export plotdata_initialize
+export plotdata_insert!
+export plotdata_straincontrolkernel
+export plotdata_updatekernel
+export plotdata_update!
+
+# include("gui_backend.jl")
+public update_propsfile!
+public update_experimentaldata_browse!
+public update_experimentaldata_draganddrop!
+public collectragged!
+public constructgrid_chareqlabel!
+public constructgrid_depeqlabel!
+public constructgrid_toggle!
+public constructgrid_slider!
+public reset_sliders!
+public update_modelinputs!
+public doratheexplorer_sliders
 
 end

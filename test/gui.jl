@@ -1,7 +1,7 @@
 using PlasticityCalibratinator
 include("JohnsonCook.jl")
 
-import BammannChiesaJohnsonPlasticity
+using BammannChiesaJohnsonPlasticity
 include("BCJMetal.jl")
 include("DK.jl")
 include("Bammann1990Modeling.jl")

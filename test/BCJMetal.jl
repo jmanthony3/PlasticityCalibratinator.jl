@@ -1,21 +1,14 @@
 using PlasticityBase
+using PlasticityCalibratinator
 using BammannChiesaJohnsonPlasticity
 
-function bcjmetalcalibration_kernel(test_data, test_cond, incnum, istate, params, i, ISV_Model)::NamedTuple
+function PlasticityCalibratinator.plotdata_straincontrolkernel(::Type{<:BCJMetal}, emax, temp, epsrate, incnum, loadtype, params)::NamedTuple
     kS          = 1     # default tension component
-    if istate == 2
+    if loadtype == :torsion
         kS      = 4     # select torsion component
     end
-    emax        = maximum(test_data["Data_E"][i])
-    # println("Setup: emax for set ", i, " = ", emax)
-    bcj_loading     = BCJMetalStrainControl(
-        test_cond["Temp"][i], test_cond["StrainRate"][i],
-        emax, incnum, istate, params)
-    bcj_configuration   = referenceconfiguration(ISV_Model, bcj_loading)
-    bcj_reference       = bcj_configuration[1]
-    bcj_current         = bcj_configuration[2]
-    bcj_history         = bcj_configuration[3]
-    solve!(bcj_current, bcj_history)
+    bcj_loading     = BCJMetalStrainControl(temp, epsrate, emax, incnum, loadtype, params)
+    bcj_history   = kernel(ISV_Model, bcj_loading)[3]
     # println("Solved: emax for set ", i, " = ", maximum(bcj_history.ϵ__))
     ϵ__         = bcj_history.ϵ__
     σ__         = bcj_history.σ__
@@ -28,4 +21,9 @@ function bcjmetalcalibration_kernel(test_data, test_cond, incnum, istate, params
     σvM     = symmetricvonMises(σ__)
     α       = α__[kS, :]
     return (ϵ=ϵ, σ=σ, σvM=σvM, α=α, κ=κ)
+end
+
+@inline function PlasticityCalibratinator.plotdata_updatekernel(test_data, test_cond, incnum, loadtype, params, i, ISV_Model)::NamedTuple
+    return plotdata_plasticitykernel(test_cond["Temp"][i], test_cond["StrainRate"][i],
+        maximum(test_data["Data_E"][i]), incnum, loadtype, params)
 end
