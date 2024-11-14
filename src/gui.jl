@@ -322,10 +322,13 @@ function screen_main_interactions!(fig_b, fig_c, fig_d,
     chareqs_labels = Observable([
         constructgrid_chareqlabel!(f_b[][i, 1], eq) for (i, eq) in enumerate(characteristic_equations)])
     # grid_sliders    = GridLayout(ba[ 2,  1], 10, 3)
-    f_c = GridLayout(f[3, 1], 1, 3)
-    explorermode_label           = Label(f_c[ 1,  1], "Explorer Mode?"; halign=:right)
-    explorermode_toggle          = Toggle(f_c[ 1,  2], active=false)
-    showsliders_button          = Button(f_c[1, 3], label="Show sliders")
+    f_c = GridLayout(f[3, 1], 1, 2)
+    f_ca = GridLayout(f_c[1, 1], 3, 1)
+    calibrationmode_label           = Label(f_ca[ 1,  1], "Calibration Mode?"; halign=:right)
+    explorermode_toggle          = Toggle(f_ca[ 2,  1], active=false)
+    # rotate!(explorermode_toggle, 90.)
+    explorermode_label           = Label(f_ca[ 3,  1], "Explorer Mode?"; halign=:left)
+    showsliders_button          = Button(f_c[1, 2], label="Show sliders")
 
     # h = Figure(size=(600, 400))
     #### plot
