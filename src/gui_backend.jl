@@ -233,7 +233,7 @@ function doratheexplorer_sliders(fig_d, model_calibration, model_data, sliders_s
     #     (label=L"\dot{\epsilon}",   range=range(10^-6, 10^9; length=1_000), format="{:.3e}", startvalue=1),
     #     (label=L"\epsilon_{final}", range=range(0, 100; length=1_000), format="{:.3e}", startvalue=1),
     # )
-    temperature_strainrate_grid = GridLayout(fig[1, 1], 3, 2; tellwidth=false)
+    temperature_strainrate_grid = GridLayout(fig[1, 1], 4, 2; tellwidth=false)
     temperature_label           = Label(temperature_strainrate_grid[1, 1], L"T")
     temperature_textbox       = Textbox(temperature_strainrate_grid[1, 2], placeholder="300",
         width=5fig.scene.theme.fontsize[], stored_string="300", displayed_string="300", halign=:left)
@@ -243,13 +243,14 @@ function doratheexplorer_sliders(fig_d, model_calibration, model_data, sliders_s
     finalstrain_label           = Label(temperature_strainrate_grid[3, 1], L"\epsilon_{n}")
     finalstrain_textbox       = Textbox(temperature_strainrate_grid[3, 2], placeholder="1",
         width=5fig.scene.theme.fontsize[], stored_string="1", displayed_string="1", halign=:left)
+    updateinputs_button        = Button(temperature_strainrate_grid[1, 4], label="Update Inputs")
 
     collectrangefromstring(str) = begin
         try
             [parse(Float64, str)]
         catch exc
             try
-                parse.(Float64, split(match(r"[^\{\[\(].+[^\}\]\)]", str), ','))
+                parse.(Float64, split(match(r"[^\{\[\(].+[^\}\]\)]", str).match, ','))
             catch exc
                 try
                     abstract_range = parse.(Float64, split(str, ':'))
@@ -265,32 +266,21 @@ function doratheexplorer_sliders(fig_d, model_calibration, model_data, sliders_s
         end
     end
     temperatures    = Observable(collectrangefromstring(temperature_textbox.displayed_string[]))
-    on(temperature_textbox.displayed_string) do s
-        update_observablevector!(temperatures, collectrangefromstring(s))
-        # expdatasets_textbox.stored_string[] = join(filedump, "\n")
-        # expdatasets_textbox.displayed_string[] = join(filedump, "\n")
-    end
     # println(temperatures)
     strainrates     = Observable(collectrangefromstring(strainrate_textbox.displayed_string[]))
-    on(strainrate_textbox.displayed_string) do s
-        update_observablevector!(strainrates, collectrangefromstring(s))
-    end
     # println(strainrates)
     finalstrains    = Observable(collectrangefromstring(finalstrain_textbox.displayed_string[]))
-    on(finalstrain_textbox.displayed_string) do s
-        update_observablevector!(finalstrains, collectrangefromstring(s))
-    end
     # println(finalstrains)
     nsets = @lift mapreduce(length, *, ($temperatures, $strainrates, $finalstrains))
     # println(nsets)
 
     model_data = @lift modeldora($model_data.modelinputs.plasticmodelversion, $model_data.modelinputs, materialproperties($model_data.modelinputs.plasticmodelversion), $temperatures, $strainrates, $finalstrains)
-    dataseries = plotdora_initialize(model_data[].plasticmodelversion, model_data[].nsets, model_data[].test_data)
+    dataseries = @lift plotdora_initialize($model_data.plasticmodelversion, $model_data.nsets, $model_data.test_data)
     # model_data[].nsets = nsets; notify(model_data)
     # model_data[].test_data = test_data; notify(model_data)
     # model_data[].test_cond = test_cond; notify(model_data)
     model_calibration[].modeldata = model_data[]; notify(model_calibration)
-    model_calibration[].dataseries = dataseries; notify(model_calibration)
+    model_calibration[].dataseries = dataseries[]; notify(model_calibration)
 
     plotdora_insert!(model_calibration[].modeldata.plasticmodelversion, model_calibration)
     model_calibration[].leg = try
@@ -309,42 +299,41 @@ function doratheexplorer_sliders(fig_d, model_calibration, model_data, sliders_s
         constructgrid_depeqlabel!(sliders_griddora[][i, 2], eq) for (i, eq) in enumerate(dora_equations[])])
     sliders_slidersdora = Observable([
         constructgrid_slider!(sliders_griddora[][i, 3], dora_sliders[i]) for i in range(1, length(dora_sliders))])
-    # df_Tension_e002_295 = CSV.read("Data_Tension_e0002_T295.csv", DataFrame;
-    #     header=true, delim=',', types=[Float64, Float64, Float64, Float64, String])
-    # bcj_loading_Tension_e002_295 = BCJMetalStrainControl(295., 2e-3, 1., 200, 1, params)
-    # # bcj_loading = BCJ_metal(295., 570., 0.15, 200, 1, params)
-    # bcj_conf_Tension_e002_295 = referenceconfiguration(DK, bcj_loading_Tension_e002_295)
-    # bcj_ref_Tension_e002_295        = bcj_conf_Tension_e002_295[1]
-    # bcj_current_Tension_e002_295    = bcj_conf_Tension_e002_295[2]
-    # bcj_history_Tension_e002_295    = bcj_conf_Tension_e002_295[3]
-    # solve!(bcj_current_Tension_e002_295, bcj_history_Tension_e002_295)
-    # σvM = symmetricvonMises(bcj_history_Tension_e002_295.σ__)
-    # idx = []
-    # for t in df_Tension_e002_295[!, "Strain"]
-    #     j = findlast(bcj_history_Tension_e002_295.ϵ__[1, :] .<= t)
-    #     push!(idx, !isnothing(j) ? j : findfirst(bcj_history_Tension_e002_295.ϵ__[1, :] .>= t))
-    # end
-    # temperature_slider  = temperature_strainrate_sliders.sliders[1]
-    # strainrate_slider   = temperature_strainrate_sliders.sliders[2]
-    # finalstrain_slider  = temperature_strainrate_sliders.sliders[3]
-    # on(temperature_slider.value) do val
-    #     # redefine materialproperties with new slider values
-    #     model_data[].params[key] = to_value(val); notify(model_data)
-    #     model_calibration[].modeldata.params[key] = to_value(val); notify(model_calibration)
-    #     plotdata_update!(model_calibration[].modeldata.plasticmodelversion, model_calibration)
-    # end
-    # on(temperature_slider.value) do val
-    #     # redefine materialproperties with new slider values
-    #     model_data[].params[key] = to_value(val); notify(model_data)
-    #     model_calibration[].modeldata.params[key] = to_value(val); notify(model_calibration)
-    #     plotdata_update!(model_calibration[].modeldata.plasticmodelversion, model_calibration)
-    # end
-    # on(temperature_slider.value) do val
-    #     # redefine materialproperties with new slider values
-    #     model_data[].params[key] = to_value(val); notify(model_data)
-    #     model_calibration[].modeldata.params[key] = to_value(val); notify(model_calibration)
-    #     plotdata_update!(model_calibration[].modeldata.plasticmodelversion, model_calibration)
-    # end
+
+    on(updateinputs_button.clicks) do click
+        empty!(model_calibration[].ax)
+        if !isnothing(model_calibration[].leg)
+            delete!(model_calibration[].leg); notify(model_calibration)
+        end
+        update_observablevector!(temperatures, collectrangefromstring(temperature_textbox.displayed_string[]))
+        update_observablevector!(strainrates, collectrangefromstring(strainrate_textbox.displayed_string[]))
+        update_observablevector!(finalstrains, collectrangefromstring(finalstrain_textbox.displayed_string[]))
+        # println(finalstrains)
+        nsets = @lift mapreduce(length, *, ($temperatures, $strainrates, $finalstrains))
+        # println(nsets)
+
+        model_data = @lift modeldora($model_data.modelinputs.plasticmodelversion, $model_data.modelinputs, materialproperties($model_data.modelinputs.plasticmodelversion), $temperatures, $strainrates, $finalstrains)
+        # fig_axleg = try
+        #     axislegend(model_calibration[].ax, position=:rb)
+        # catch exc
+        #     nothing
+        # end
+        dataseries = @lift plotdora_initialize($model_data.plasticmodelversion, $model_data.nsets, $model_data.test_data)
+        # model_data[].nsets = nsets; notify(model_data)
+        # model_data[].test_data = test_data; notify(model_data)
+        # model_data[].test_cond = test_cond; notify(model_data)
+        model_calibration[].modeldata = model_data[]; notify(model_calibration)
+        model_calibration[].dataseries = dataseries[]; notify(model_calibration)
+
+        plotdora_insert!(model_calibration[].modeldata.plasticmodelversion, model_calibration)
+        model_calibration[].leg = try
+            axislegend(model_calibration[].ax, position=:rb)
+        catch exc
+            nothing
+        end; notify(model_calibration)
+        # update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], BCJMetal[])
+        plotdora_update!(model_calibration[].modeldata.plasticmodelversion, model_calibration)
+    end
     # for (key, sgs) in zip(keys(materialdora(model_calibration[].modeldata.plasticmodelversion)), temperature_strainrate_sliders.sliders)
     @lift for (key, sgs) in zip(keys(materialdora(model_calibration[].modeldata.plasticmodelversion)), collectragged($sliders_slidersdora))
         # on(sgs.value) do val
