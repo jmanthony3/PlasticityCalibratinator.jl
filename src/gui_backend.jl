@@ -35,25 +35,7 @@ end
 function update_experimentaldata_browse!(expdatasets, expdatasets_textbox)
     filelist = pick_multi_file(; filterlist="csv")
     if !isempty(filelist)
-        # println(filelist)
-        # expdatasets[] = filelist; notify(expdatasets)
         update_observablevector!(expdatasets, filelist)
-        # u, v = length(expdatasets[]), length(filelist)
-        # if u > v
-        #     for (i, file) in enumerate(filelist)
-        #         expdatasets[][i] = file;                    notify(expdatasets)
-        #     end
-        #     for i in range(u, v + 1; step=-1)
-        #         deleteat!(expdatasets[], i);                notify(expdatasets)
-        #     end
-        # elseif u < v
-        #     for (i, file) in enumerate(filelist[begin:u])
-        #         expdatasets[][i] = file;                    notify(expdatasets)
-        #     end
-        #     append!(expdatasets[], filelist[u + 1:end]);    notify(expdatasets)
-        # else
-        #     expdatasets[] .= filelist
-        # end;                                                notify(expdatasets)
         expdatasets_textbox.stored_string[] = join(filelist, "\n")
         expdatasets_textbox.displayed_string[] = join(filelist, "\n")
     end
@@ -62,23 +44,7 @@ end
 
 function update_experimentaldata_draganddrop!(expdatasets, expdatasets_textbox, filedump)
     if !isempty(filedump)
-        update_observablevector!(expdatasets, filelist)
-        # u, v = length(expdatasets[]), length(filedump)
-        # if u > v
-        #     for (i, file) in enumerate(filedump)
-        #         expdatasets[][i] = file;                    notify(expdatasets)
-        #     end
-        #     for i in range(u, v + 1; step=-1)
-        #         deleteat!(expdatasets[], i);                notify(expdatasets)
-        #     end
-        # elseif u < v
-        #     for (i, file) in enumerate(filedump[begin:u])
-        #         expdatasets[][i] = file;                    notify(expdatasets)
-        #     end
-        #     append!(expdatasets[], filedump[u + 1:end]);    notify(expdatasets)
-        # else
-        #     expdatasets[] .= filedump
-        # end;                                                notify(expdatasets)
+        update_observablevector!(expdatasets, filedump)
         expdatasets_textbox.stored_string[] = join(filedump, "\n")
         expdatasets_textbox.displayed_string[] = join(filedump, "\n")
     end
@@ -125,28 +91,32 @@ function constructgrid_slider!(grid, labels)
     end
 end
 
-function reset_sliders!(sg_sliders, model_data, model_calibration)
-    # nsliders = sum(length, modelinputs[].dependence_sliders)
-    # nsliders = count(x->isa(x, NamedTuple), modelcalibration[].modeldata.modelinputs.dependence_sliders)
-    # nsliders = count(x->isa(x, NamedTuple), collectragged(modelcalibration[].modeldata.modelinputs.dependence_sliders))
+function reset_sliders!(sg_sliders, dict, model_data, model_calibration)
     nsliders = length(collectragged(sg_sliders[]))
     # println(nsliders)
-    dict = materialconstants(model_calibration[].modeldata.plasticmodelversion) # sort(collect(modelcalibration[].modeldata.C_0), by=x->findfirst(x[1] .== materialconstants_index(modelcalibration[].modeldata.plasticmodelversion)))
-    # println(dict)
-    # for (i, key, (k, v), sgc) in zip(range(1, nsliders), materialconstants_index(modelcalibration[].modeldata.plasticmodelversion), dict, sg_sliders[])
-    #     # println((i, key, dict[key]))
-    #     modeldata[].params[key] = to_value(dict[key]); notify(modeldata)
-    #     modelcalibration[].modeldata.params[key] = to_value(dict[key]);    notify(modelcalibration)
-    #     set_close_to!(sgc.sliders[1], dict[key])
-    #     sgc.sliders[1].value[] = to_value(dict[key]);   notify(sgc.sliders[1].value)
+    println(dict)
+    # for (i, (key, val), sgc) in zip(range(1, nsliders), dict, collectragged(sg_sliders[]))
+    #     println((i, key, val))
+    #     model_data[].params[key]                    = to_value(val); notify(model_data)
+    #     model_calibration[].modeldata.params[key]   = to_value(val); notify(model_calibration)
+    #     set_close_to!(sgc.sliders[1], val)
+    #     sgc.sliders[1].value[]                      = to_value(val); notify(sgc.sliders[1].value)
     # end
-    asyncmap((i, key, (k, v), sgc)->begin # attempt multi-threading
-            # println((i, key, dict[key]))
-            model_data[].params[key] = to_value(dict[key]); notify(model_data)
-            model_calibration[].modeldata.params[key] = to_value(dict[key]);    notify(model_calibration)
-            set_close_to!(sgc.sliders[1], dict[key])
-            sgc.sliders[1].value[] = to_value(dict[key]);   notify(sgc.sliders[1].value)
-        end, range(1, nsliders), keys(materialconstants(model_calibration[].modeldata.plasticmodelversion)), dict, collectragged(sg_sliders[]))
+    asyncmap((i, (key, val), sgc)->begin # attempt multi-threading
+            println((i, key, val))
+            model_data[].params[key]                    = to_value(val); notify(model_data)
+            model_calibration[].modeldata.params[key]   = to_value(val); notify(model_calibration)
+            set_close_to!(sgc.sliders[1], val)
+            sgc.sliders[1].value[]                      = to_value(val); notify(sgc.sliders[1].value)
+        end, range(1, nsliders), dict, collectragged(sg_sliders[]))
+    return nothing
+end
+
+function clearplot!(model_calibration)
+    empty!(model_calibration[].ax)
+    if !isnothing(model_calibration[].leg)
+        delete!(model_calibration[].leg); notify(model_calibration)
+    end
     return nothing
 end
 
@@ -156,10 +126,7 @@ function update_modelinputs!(fig_b, fig_d,
         loaddir_axial_toggle, loaddir_torsion_toggle,
         incnum_textbox, stressscale_textbox, model_inputs, model_data, model_calibration,
         sliders_grid, sliders_toggles, sliders_labels, sliders_sliders)
-    empty!(model_calibration[].ax)
-    if !isnothing(model_calibration[].leg)
-        delete!(model_calibration[].leg); notify(model_calibration)
-    end
+    clearplot!(model_calibration)
     plasticmodelversion_temp       = plasticmodeltypeversion_menu.selection[]
     # println(plasticmodelversion_temp)
     propsfile_temp                 = if isnothing(propsfile_textbox.stored_string[])
@@ -218,7 +185,7 @@ function update_modelinputs!(fig_b, fig_d,
     #     sg_slider!(sliders_grid[][i, 3], modelinputs[].dependence_sliders[i]) for i in range(1, length(modelinputs[].dependence_sliders))]))
     sliders_sliders = Observable([
         constructgrid_slider!(sliders_grid[][i, 3], model_inputs[].dependence_sliders[i]) for i in range(1, length(model_inputs[].dependence_sliders))])
-    reset_sliders!(sliders_sliders, model_data, model_calibration)
+    # reset_sliders!(sliders_sliders, model_data, model_calibration)
     model_calibration[].dataseries           = plotdata_initialize(model_inputs[].plasticmodelversion,
         model_calibration[].modeldata.nsets, model_calibration[].modeldata.test_data);                        notify(model_calibration)
     plotdata_insert!(model_inputs[].plasticmodelversion, model_calibration)
@@ -226,13 +193,8 @@ function update_modelinputs!(fig_b, fig_d,
     return model_inputs, model_data, model_calibration, sliders_sliders
 end
 
-function doratheexplorer_sliders(fig_d, model_calibration, model_data, sliders_sliders, dora_sliders)
+function doratheexplorer_sliders(model_calibration, model_data, dora_sliders) # (fig_d, model_calibration, model_data, sliders_sliders, dora_sliders)
     fig = Figure(size=(450, 600), layout=GridLayout(2, 1))
-    # temperature_strainrate_sliders = SliderGrid(fig[1, 1],
-    #     (label=L"T",                range=range(0,  1000; length=1_000),    format="{:.3e}", startvalue=300),
-    #     (label=L"\dot{\epsilon}",   range=range(10^-6, 10^9; length=1_000), format="{:.3e}", startvalue=1),
-    #     (label=L"\epsilon_{final}", range=range(0, 100; length=1_000), format="{:.3e}", startvalue=1),
-    # )
     temperature_strainrate_grid = GridLayout(fig[1, 1], 4, 2; tellwidth=false)
     temperature_label           = Label(temperature_strainrate_grid[1, 1], L"T")
     temperature_textbox       = Textbox(temperature_strainrate_grid[1, 2], placeholder="300",
@@ -243,7 +205,8 @@ function doratheexplorer_sliders(fig_d, model_calibration, model_data, sliders_s
     finalstrain_label           = Label(temperature_strainrate_grid[3, 1], L"\epsilon_{n}")
     finalstrain_textbox       = Textbox(temperature_strainrate_grid[3, 2], placeholder="1",
         width=5fig.scene.theme.fontsize[], stored_string="1", displayed_string="1", halign=:left)
-    updateinputs_button        = Button(temperature_strainrate_grid[1, 4], label="Update Inputs")
+    updateinputs_button        = Button(temperature_strainrate_grid[1, 4][1, 1], label="Update Inputs")
+    resetsliders_button        = Button(temperature_strainrate_grid[1, 4][2, 1], label="Reset Sliders")
 
     collectrangefromstring(str) = begin
         try
@@ -301,10 +264,7 @@ function doratheexplorer_sliders(fig_d, model_calibration, model_data, sliders_s
         constructgrid_slider!(sliders_griddora[][i, 3], dora_sliders[i]) for i in range(1, length(dora_sliders))])
 
     on(updateinputs_button.clicks) do click
-        empty!(model_calibration[].ax)
-        if !isnothing(model_calibration[].leg)
-            delete!(model_calibration[].leg); notify(model_calibration)
-        end
+        clearplot!(model_calibration)
         update_observablevector!(temperatures, collectrangefromstring(temperature_textbox.displayed_string[]))
         update_observablevector!(strainrates, collectrangefromstring(strainrate_textbox.displayed_string[]))
         update_observablevector!(finalstrains, collectrangefromstring(finalstrain_textbox.displayed_string[]))
@@ -344,8 +304,23 @@ function doratheexplorer_sliders(fig_d, model_calibration, model_data, sliders_s
             plotdora_update!(model_calibration[].modeldata.plasticmodelversion, model_calibration)
         end
     end
-    display(GLMakie.Screen(; title="Sliders", focus_on_show=true), fig)
+    display(GLMakie.Screen(; title="[Explorer Mode] Test Conditions", focus_on_show=true), fig)
     # screen_sliders(fig_d, model_calibration, model_data, sliders_sliders)
+    # empty!(fig_d)
+    fig_d = Figure(size=(450, 600))
+    sliders_grid    = GridLayout(fig_d[1, 1], length(model_data[].modelinputs.dependence_equations), 3)
+    # println(@__LINE__, ", Made it here...")
+    sliders_toggles = [ # add toggles for which to calibrate
+        constructgrid_toggle!(sliders_grid[i, 1]) for i in range(1, length(model_data[].modelinputs.dependence_equations))]
+    # notify(sliders_toggles)
+    sliders_labels  = [ # label each slider with equation
+        constructgrid_depeqlabel!(sliders_grid[i, 2], eq) for (i, eq) in enumerate(model_data[].modelinputs.dependence_equations)]
+    # notify(sliders_labels)
+    # println(@__LINE__, ", Made it here...")
+    # println(typeof([
+    #     sg_slider!(sliders_grid[][i, 3], modelinputs[].dependence_sliders[i]) for i in range(1, length(modelinputs[].dependence_sliders))]))
+    sliders_sliders = Observable([
+        constructgrid_slider!(sliders_grid[i, 3], model_data[].modelinputs.dependence_sliders[i]) for i in range(1, length(model_data[].modelinputs.dependence_sliders))])
     ### update curves from sliders
     @lift for (key, sgs) in zip(keys(materialconstants(model_calibration[].modeldata.plasticmodelversion)), collectragged($sliders_sliders))
         on(only(sgs.sliders).value) do val
@@ -355,5 +330,19 @@ function doratheexplorer_sliders(fig_d, model_calibration, model_data, sliders_s
             plotdora_update!(model_calibration[].modeldata.plasticmodelversion, model_calibration)
         end
     end
-    display(GLMakie.Screen(; title="Sliders", focus_on_show=true), fig_d)
+    on(resetsliders_button.clicks) do click
+        # # for (i, c, sgc) in zip(range(1, nsliders), C_0, sg_sliders)
+        # #     params[][BCJinator.constant_string(i)] = to_value(c);         notify(params)
+        # #     set_close_to!(sgc.sliders[1], c)
+        # #     sgc.sliders[1].value[] = to_value(c);                   notify(sgc.sliders[1].value)
+        # # end
+        # asyncmap((i, c, sgc)->begin # attempt multi-threading
+        #         params[][BCJinator.constant_string(i)] = to_value(c);     notify(params)
+        #         set_close_to!(sgc.sliders[1], c)
+        #         sgc.sliders[1].value[] = to_value(c);               notify(sgc.sliders[1].value)
+        #     end, range(1, nsliders), C_0, sg_sliders)
+        reset_sliders!(sliders_slidersdora, materialdora(model_calibration[].modeldata.plasticmodelversion), model_data, model_calibration)
+        reset_sliders!(sliders_sliders, materialconstants(model_calibration[].modeldata.plasticmodelversion), model_data, model_calibration)
+    end
+    display(GLMakie.Screen(; title="[Explorer Mode] Sliders", focus_on_show=true), fig_d)
 end

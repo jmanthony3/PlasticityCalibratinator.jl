@@ -10,7 +10,7 @@ using BammannChiesaJohnsonPlasticity
 
 set_theme!(theme_latexfonts())
 
-PlasticityCalibratinator.materialproperties(::Type{Bammann1990Modeling}) = Dict(
+materialprops_Bammann1990Modeling = Dict(
     # Comment,For Calibration with vumat
     "C01"       => 4.959788864230217e7,
     "C02"       => 442.6117395684036,
@@ -33,7 +33,7 @@ PlasticityCalibratinator.materialproperties(::Type{Bammann1990Modeling}) = Dict(
     "Bulk Mod"  => 159000000000.0,
     "Shear Mod" => 77000000000.0,
 )
-PlasticityCalibratinator.materialconstants(::Type{Bammann1990Modeling}) = collect(
+materialconsts_Bammann1990Modeling = collect(
     "C01"       => 4.959788864230217e7,
     "C02"       => 442.6117395684036,
     "C03"       => 4.532613412908138e8,
@@ -54,6 +54,9 @@ PlasticityCalibratinator.materialconstants(::Type{Bammann1990Modeling}) = collec
     "C18"       => 291.9445631223215,
 )
 
+PlasticityCalibratinator.materialproperties(::Type{Bammann1990Modeling}) = materialprops_Bammann1990Modeling
+PlasticityCalibratinator.materialconstants(::Type{Bammann1990Modeling}) = materialconsts_Bammann1990Modeling
+
 PlasticityCalibratinator.characteristicequations(::Type{Bammann1990Modeling}) = [
     # plasticstrainrate
     L"\dot{\epsilon}_{p} = f(\theta)\sinh\left[ \frac{ \{|\mathbf{\xi}| - \kappa - Y(\theta) \} }{ V(\theta) } \right]\frac{\mathbf{\xi}'}{|\mathbf{\xi}'|}\text{, let }\mathbf{\xi}' = \mathbf{\sigma}' - \mathbf{\alpha}'"
@@ -67,63 +70,71 @@ PlasticityCalibratinator.characteristicequations(::Type{Bammann1990Modeling}) = 
     L"\beta(\dot{\epsilon}_{p}, \theta) = Y(\theta) + V(\theta)\sinh^{-1}\left(\frac{|\dot{\epsilon}_{p}|}{f(\theta)}\right)"
 ]
 PlasticityCalibratinator.dependenceequations(::Type{Bammann1990Modeling})     = [
-    L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)", # textbox_V
-    L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)", # textbox_Y
-    L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)", # textbox_f
-    L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)", # textbox_rd
-    L"h = C_{ 9} \mathrm{exp}( C_{10} / \theta)", # textbox_h
-    L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)", # textbox_rs
-    L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)", # textbox_Rd
-    L"H = C_{15} \mathrm{exp}( C_{16} / \theta)", # textbox_H
-    L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)", # textbox_Rs
+    L"V = C_{ 1} \mathrm{exp}(-C_{ 2} / \theta)",       # V
+    L"Y = C_{ 3} \mathrm{exp}( C_{ 4} / \theta)",       # Y
+    L"f = C_{ 5} \mathrm{exp}(-C_{ 6} / \theta)",       # f
+    L"r_{d} = C_{ 7} \mathrm{exp}(-C_{ 8} / \theta)",   # rd
+    L"h = C_{ 9} \mathrm{exp}( C_{10} / \theta)",       # h
+    L"r_{s} = C_{11} \mathrm{exp}(-C_{12} / \theta)",   # rs
+    L"R_{d} = C_{13} \mathrm{exp}(-C_{14} / \theta)",   # Rd
+    L"H = C_{15} \mathrm{exp}( C_{16} / \theta)",       # H
+    L"R_{s} = C_{17} \mathrm{exp}(-C_{18} / \theta)",   # Rs
 ]
 PlasticityCalibratinator.dependencesliders(::Type{Bammann1990Modeling})       = [
     # V
     [
-        (label=L"C_{ 1}", range=range(0., 5materialconstants(Bammann1990Modeling)["C01"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C01"]), # , width=0.4w[]))
-        (label=L"C_{ 2}", range=range(0., 5materialconstants(Bammann1990Modeling)["C02"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C02"]), # , width=0.4w[]))
+        (label=L"C_{ 1}", range=range(0., 5materialconsts_Bammann1990Modeling["C01"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C01"]),
+        (label=L"C_{ 2}", range=range(0., 5materialconsts_Bammann1990Modeling["C02"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C02"]),
     ],
     # Y
     [
-        (label=L"C_{ 3}", range=range(0., 5materialconstants(Bammann1990Modeling)["C03"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C03"]), # , width=0.4w[]))
-        (label=L"C_{ 4}", range=range(0., 5materialconstants(Bammann1990Modeling)["C04"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C04"]), # , width=0.4w[]))
+        (label=L"C_{ 3}", range=range(0., 5materialconsts_Bammann1990Modeling["C03"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C03"]),
+        (label=L"C_{ 4}", range=range(0., 5materialconsts_Bammann1990Modeling["C04"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C04"]),
     ],
     # f
     [
-        (label=L"C_{ 5}", range=range(0., 5materialconstants(Bammann1990Modeling)["C05"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C05"]), # , width=0.4w[]))
-        (label=L"C_{ 6}", range=range(0., 5materialconstants(Bammann1990Modeling)["C06"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C06"]), # , width=0.4w[]))
+        (label=L"C_{ 5}", range=range(0., 5materialconsts_Bammann1990Modeling["C05"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C05"]),
+        (label=L"C_{ 6}", range=range(0., 5materialconsts_Bammann1990Modeling["C06"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C06"]),
     ],
     # rd
     [
-        (label=L"C_{ 7}", range=range(0., 5materialconstants(Bammann1990Modeling)["C07"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C07"]), # , width=0.4w[]))
-        (label=L"C_{ 8}", range=range(0., 5materialconstants(Bammann1990Modeling)["C08"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C08"]), # , width=0.4w[]))
+        (label=L"C_{ 7}", range=range(0., 5materialconsts_Bammann1990Modeling["C07"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C07"]),
+        (label=L"C_{ 8}", range=range(0., 5materialconsts_Bammann1990Modeling["C08"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C08"]),
     ],
     # h
     [
-        (label=L"C_{ 9}", range=range(0., 5materialconstants(Bammann1990Modeling)["C09"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C09"]), # , width=0.4w[]))
-        (label=L"C_{10}", range=range(0., 5materialconstants(Bammann1990Modeling)["C10"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C10"]), # , width=0.4w[]))
+        (label=L"C_{ 9}", range=range(0., 5materialconsts_Bammann1990Modeling["C09"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C09"]),
+        (label=L"C_{10}", range=range(0., 5materialconsts_Bammann1990Modeling["C10"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C10"]),
     ],
     # rs
     [
-        (label=L"C_{11}", range=range(0., 5materialconstants(Bammann1990Modeling)["C11"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C11"]), # , width=0.4w[]))
-        (label=L"C_{12}", range=range(0., 5materialconstants(Bammann1990Modeling)["C12"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C12"]), # , width=0.4w[]))
+        (label=L"C_{11}", range=range(0., 5materialconsts_Bammann1990Modeling["C11"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C11"]),
+        (label=L"C_{12}", range=range(0., 5materialconsts_Bammann1990Modeling["C12"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C12"]),
     ],
     # Rd
     [
-        (label=L"C_{13}", range=range(0., 5materialconstants(Bammann1990Modeling)["C13"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C13"]), # , width=0.4w[]))
-        (label=L"C_{14}", range=range(0., 5materialconstants(Bammann1990Modeling)["C14"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C14"]), # , width=0.4w[]))
+        (label=L"C_{13}", range=range(0., 5materialconsts_Bammann1990Modeling["C13"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C13"]),
+        (label=L"C_{14}", range=range(0., 5materialconsts_Bammann1990Modeling["C14"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C14"]),
     ],
     # H
     [
-        (label=L"C_{15}", range=range(0., 5materialconstants(Bammann1990Modeling)["C15"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C15"]), # , width=0.4w[]))
-        (label=L"C_{16}", range=range(0., 5materialconstants(Bammann1990Modeling)["C16"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C16"]), # , width=0.4w[]))
+        (label=L"C_{15}", range=range(0., 5materialconsts_Bammann1990Modeling["C15"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C15"]),
+        (label=L"C_{16}", range=range(0., 5materialconsts_Bammann1990Modeling["C16"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C16"]),
     ],
     # Rs
     [
-        (label=L"C_{17}", range=range(0., 5materialconstants(Bammann1990Modeling)["C17"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C17"]), # , width=0.4w[]))
-        (label=L"C_{18}", range=range(0., 5materialconstants(Bammann1990Modeling)["C18"]; length=1_000), format="{:.3e}", startvalue=materialconstants(Bammann1990Modeling)["C18"]), # , width=0.4w[]))
+        (label=L"C_{17}", range=range(0., 5materialconsts_Bammann1990Modeling["C17"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C17"]),
+        (label=L"C_{18}", range=range(0., 5materialconsts_Bammann1990Modeling["C18"]; length=1_000), format="{:.3e}", startvalue=materialconsts_Bammann1990Modeling["C18"]),
     ],
 ]
+
+################################################################
+#  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  #
+# PlasticityBase
+#  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  #
+# PlasticityCalibratinator
+#  v  v  v  v  v  v  v  v  v  v  v  v  v  v  v  v  v  v  v  v  #
+################################################################
 
 # FORMATTING: test_data[i][[e_data,s_data] , [e_model,s_model] , [e_err, s_err]]
 function PlasticityCalibratinator.modeldata(::Type{Bammann1990Modeling}, modelinputs::ModelInputs, params)::ModelData
@@ -131,7 +142,8 @@ function PlasticityCalibratinator.modeldata(::Type{Bammann1990Modeling}, modelin
     files = modelinputs.expdatasets
     incnum = modelinputs.incnum
     Scale_MPa = modelinputs.stressscale
-    istate = Int64(modelinputs.loading_axial)
+    # istate = Int64(modelinputs.loading_axial)
+    loadstate = modelinputs.loading_axial ? :tension : :compression
     test_cond   = Dict(
         "StrainRate"    => [],
         "Temp"          => [],
@@ -183,7 +195,7 @@ function PlasticityCalibratinator.modeldata(::Type{Bammann1990Modeling}, modelin
         @sync @distributed for i in range(1, nsets)
         # for i in range(1, nsets)
             # test_data, test_cond, incnum, istate, params, i, ISV_Model
-            sol = bcjmetalcalibration_kernel(test_data, test_cond, incnum, istate, params, i, Bammann1990Modeling)
+            sol = plotdata_updatekernel(Bammann1990Modeling, test_data, test_cond, incnum, loadstate, params, i)
             # test_data[i][1] = [E,S,Al,kap,tot,SVM]             #Store model stress/strain data
             # push!(test_data["Model_E"],     E)
             # push!(test_data["Model_S"],     S)
@@ -250,20 +262,36 @@ function PlasticityCalibratinator.plotdata_insert!(::Type{Bammann1990Modeling}, 
     end
 end
 
+# function PlasticityCalibratinator.plotdata_straincontrolkernel(::Type{Bammann1990Modeling}, temp, epsrate, emax, incnum, params)::NamedTuple
+#     # println("Setup: emax for set ", i, " = ", emax)
+#     # println("θ=", temp, ", ϵ̇=", epsrate, ", ϵₙ=", emax, ", N=", incnum)
+#     loading = BCJMetalStrainControl(temp, epsrate, emax, incnum, params)
+#     history = kernel(Bammann1990Modeling, loading)[3]
+#     # println("Solved: emax for set ", i, " = ", maximum(jc_history.ϵ))
+#     return (ϵ=history.ϵ, σ=history.σ, σvM=history.σ)
+# end
+
+# @inline function PlasticityCalibratinator.plotdata_updatekernel(::Type{Bammann1990Modeling}, test_data, test_cond, incnum, params, i)::NamedTuple
+#     return plotdata_straincontrolkernel(Bammann1990Modeling,
+#         test_cond["Temp"][i], test_cond["StrainRate"][i],
+#         maximum(test_data["Data_E"][i]), incnum, params)
+# end
+
 function PlasticityCalibratinator.plotdata_update!(::Type{Bammann1990Modeling}, modelcalibration)
     # dataseries, incnum, Scale_MPa
     Plot_ISVs = []
+    for (key, val) in modelcalibration[].modeldata.params
+        modelcalibration[].modeldata.materialproperties[key] = val
+    end
+    loadstate = modelcalibration[].modeldata.modelinputs.loading_axial ? :tension : :compression
     @sync @distributed for i in range(1, modelcalibration[].modeldata.nsets)
     # for i in range(1, modelcalibration.modeldata.nsets)
-        for (key, val) in BCJ.params
-            BCJ.materialproperties[key] = val
-        end
         # sol = jccalibration_kernel(jc.test_data, jc.test_cond, jc.incnum, jc.materialproperties, i)
-        sol = plotdata_updatekernel(BCJ.test_data, BCJ.test_cond, BCJ.incnum, Int64(BCJ.modelinputs.loading_axial), BCJ.materialproperties, i, Bammann1990Modeling)
-        BCJ.test_data["Model_S"][i]    .= sol.σ
-        BCJ.test_data["Model_VM"][i]   .= sol.σvM
-        BCJ.test_data["Model_alph"][i] .= sol.α
-        BCJ.test_data["Model_kap"][i]  .= sol.κ
+        sol = plotdata_updatekernel(Bammann1990Modeling, modelcalibration[].modeldata.test_data, modelcalibration[].modeldata.test_cond, modelcalibration[].modeldata.incnum, loadstate, modelcalibration[].modeldata.materialproperties, i)
+        modelcalibration[].modeldata.test_data["Model_S"][i]    .= sol.σ
+        modelcalibration[].modeldata.test_data["Model_VM"][i]   .= sol.σvM
+        modelcalibration[].modeldata.test_data["Model_alph"][i] .= sol.α
+        modelcalibration[].modeldata.test_data["Model_kap"][i]  .= sol.κ
         modelcalibration[].dataseries[2][i][].y .= modelcalibration[].modeldata.test_data["Model_VM"][i]
         if !isempty(Plot_ISVs)
             modelcalibration[].dataseries[3][i][].y .= modelcalibration[].modeldata.test_data["Model_alph"][i]

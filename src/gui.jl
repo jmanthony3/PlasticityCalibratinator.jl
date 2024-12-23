@@ -56,24 +56,30 @@ function screen_main_inputs!(fig, fig_a, fig_width,
     fig_fontsize = fig.scene.theme.fontsize[]
     material_dict = JSON.parsefile("../data/plasticityconstants.json")
     material_dictkeys = keys(material_dict)
+
     # sub-figure for input parameters of calibration study
-    f = GridLayout(fig_a[ 1,  1], 4, 3)
+    f = GridLayout(fig_a[1, 1], 4, 3)
+
     ## model selection
     f_a = GridLayout(f[1, :], 2, 4)
-    modelclass_label        = Label(f_a[ 1,  1], "Model Class")
+    colsize!(f_a, 1, Relative(0.24))
+    colsize!(f_a, 2, Relative(0.24))
+    colsize!(f_a, 3, Relative(0.24))
+    colsize!(f_a, 4, Relative(0.24))
+    ### model class
+    modelclass_label        = Label(f_a[1, 1], "Model Class")
     modelclass_types        = Observable(subtypes(AbstractPlasticity))
     modelclass_default      = @lift first($modelclass_types)
     modelclass_matdict      = material_dict[repr(modelclass_default[])]
     modelclass_matdictkeys  = keys(modelclass_matdict)
-    modelclass_menu         = Menu(f_a[ 2,  1],
+    modelclass_menu         = Menu(f_a[2, 1],
         options=zip(repr.(modelclass_types[]), modelclass_types[]),
         default=repr(modelclass_default[])) # , width=32figfontsize)
-    colsize!(f_a, 1, Relative(0.24))
     # println(@__LINE__, ", ", repr.(modelclass_types[]))
     # println(@__LINE__, ", ", repr(modelclass_default[]))
     # println(@__LINE__, ", ", modelclass_matdictkeys)
-
-    modeltype_label         = Label(f_a[ 1,  2], "Model Type")
+    ### model type
+    modeltype_label         = Label(f_a[1, 2], "Model Type")
     modeltype_types         = Observable(subtypes(modelclass_default[]))
     if isempty(modeltype_types[])
         modeltype_types[] = [modelclass_default[]]; notify(modeltype_types)
@@ -88,15 +94,14 @@ function screen_main_inputs!(fig, fig_a, fig_width,
     if isempty(modeltype_matdictkeys)
         modeltype_matdict = modelclass_matdict
     end
-    modeltype_menu          = Menu(f_a[ 2,  2],
+    modeltype_menu          = Menu(f_a[2, 2],
         options=zip(repr.(modeltype_types[]), modeltype_types[]),
         default=repr(modeltype_default[])) # , width=32figfontsize)
-    colsize!(f_a, 2, Relative(0.24))
     # println(@__LINE__, ", ", repr.(modeltype_types[]))
     # println(@__LINE__, ", ", repr(modeltype_default[]))
     # println(@__LINE__, ", ", modeltype_matdictkeys)
-
-    modelversion_label      = Label(f_a[ 1,  3], "Model Version")
+    ### model version
+    modelversion_label      = Label(f_a[1, 3], "Model Version")
     modelversion_types      = Observable(subtypes(modeltype_default[]))
     if isempty(modelversion_types[])
         modelversion_types[] = [modeltype_default[]]; notify(modelversion_types)
@@ -111,30 +116,87 @@ function screen_main_inputs!(fig, fig_a, fig_width,
     if isempty(modelversion_matdictkeys)
         modelversion_matdict = modeltype_matdict
     end
-    modelversion_menu       = Menu(f_a[ 2,  3],
+    modelversion_menu       = Menu(f_a[2, 3],
         options=zip(repr.(modelversion_types[]), modelversion_types[]),
         default=repr(modelversion_default[])) # , width=32figfontsize)
-    colsize!(f_a, 3, Relative(0.24))
     # println(@__LINE__, ", ", repr.(modelversion_types[]))
     # println(@__LINE__, ", ", repr(modelversion_default[]))
     # println(@__LINE__, ", ", modelversion_matdictkeys)
-
-    material_label          = Label(f_a[ 1, 4], "Material")
-    material_types          = Observable(modelversion_matdictkeys)
-    # if isempty(material_types[])
-    #     material_types[] = 
-    material_default        = @lift first($material_types)
-    material_menu           = Menu(f_a[ 2,  4],
-        options=zip(material_types[], material_types[]),
-        default=material_default[])
-    colsize!(f_a, 4, Relative(0.24))
+    ### model material
+    modelmaterial_label     = Label(f_a[1, 4], "Material")
+    modelmaterial_types     = Observable(modelversion_matdictkeys)
+    modelmaterial_default   = @lift first($modelmaterial_types)
+    modelmaterial_menu      = Menu(f_a[2, 4],
+        options=zip(modelmaterial_types[], modelmaterial_types[]),
+        default=modelmaterial_default[])
     # println(@__LINE__, ", ", repr.(material_types[]))
     # println(@__LINE__, ", ", repr(material_default[]))
+
+    ## other inputs
+    ### widgets
+    #### propsfile
+    propsfile_label                 = Label(f[2, 1], "Path to parameters dictionary:"; halign=:right)
+    propsfile_textbox             = Textbox(f[2, 2], placeholder="path/to/dict",
+        width=512)
+    propsfile_button               = Button(f[2, 3], label="Browse")
+    #### experimental datasets
+    expdatasets_label               = Label(f[3, 1], "Paths to experimental datasets:"; halign=:right)
+    expdatasets_textbox           = Textbox(f[3, 2], placeholder="path/to/experimental datasets",
+        width=512, height=5fig.scene.theme.fontsize[])
+    expdatasets_button             = Button(f[3, 3], label="Browse")
+    #### loading direction toggles
+    loadingdirection_label          = Label(f[4, 1], "Loading directions in experiments:"; halign=:right)
+    #### loading conditions
+    f_b = GridLayout(f[4, 2], 1, 2)
+    f_ba = GridLayout(f_b[1, 1], 1, 2)
+    loaddir_axial_label             = Label(f_ba[1, 1], "Tension/Compression:"; halign=:right)
+    loaddir_axial_toggle           = Toggle(f_ba[1, 2], active=true)
+    f_bb = GridLayout(f_b[1, 2], 1, 2)
+    loaddir_torsion_label           = Label(f_bb[1, 1], "Torsion:"; halign=:right)
+    loaddir_torsion_toggle         = Toggle(f_bb[1, 2], active=false)
+    #### model calibration increment and stress scale
+    f_c = GridLayout(f[5, :], 1, 2; halign=:left)
+    ##### number of strain increments
+    f_ca = GridLayout(f_c[1, 1], 1, 2; halign=:left)
+    incnum_label                    = Label(f_ca[1, 1], "Number of strain increments for model curves:"; halign=:right)
+    incnum_textbox                = Textbox(f_ca[1, 2], placeholder="positive, non-zero integer",
+        width=5fig.scene.theme.fontsize[], stored_string="200", displayed_string="200", validator=Int64, halign=:left)
+    ##### stress scale
+    f_cb = GridLayout(f_c[1, 2], 1, 2; halign=:left)
+    stressscale_label               = Label(f_cb[1, 1], "Scale of stress axis:"; halign=:right)
+    stressscale_textbox           = Textbox(f_cb[1, 2], placeholder="positive, non-zero float",
+        width=5fig.scene.theme.fontsize[], stored_string="1.0", displayed_string="1.0", validator=Float64, halign=:left)
+
+    ### values
+    plasticmodelversion[]       = modelversion_default[];                                   notify(plasticmodelversion)
+    propsfile[]                 = if isnothing(propsfile_textbox.stored_string[])
+        ""
+    else
+        propsfile_textbox.displayed_string[]
+    end; notify(propsfile)
+    expdatasets[]               = [if isnothing(expdatasets_textbox.stored_string[])
+        ""
+    else
+        expdatasets_textbox.displayed_string[]
+    end]; notify(expdatasets)
+    loading_axial[]             = loaddir_axial_toggle.active[];                            notify(loading_axial)
+    loading_torsional[]         = loaddir_torsion_toggle.active[];                          notify(loading_torsional)
+    incnum[]                    = parse(Int64, incnum_textbox.displayed_string[]);          notify(incnum)
+    stressscale[]               = parse(Float64, stressscale_textbox.displayed_string[]);   notify(stressscale)
+    characteristic_equations    = characteristicequations(plasticmodelversion[]) # ;           notify(characteristic_equations)
+    dependence_equations        = dependenceequations(plasticmodelversion[]) # ;               notify(dependence_equations)
+    dependence_sliders[]        = dependencesliders(plasticmodelversion[]);                 notify(dependence_sliders)
+
+
+
+    # listener functions
+    ## drop-down menu functions
     on(modelclass_menu.selection) do s
+        ### model class
         modelclass_default[] = s; notify(modelclass_default)
         modelclass_matdict = material_dict[repr(modelclass_default[])]
         # println(@__LINE__, ", ", modelclass_default[])
-
+        ### model type
         modeltype_types_temp = subtypes(modelclass_default[])
         modeltype_types[] = if isempty(modeltype_types_temp)
             [modelclass_default[]]
@@ -154,7 +216,7 @@ function screen_main_inputs!(fig, fig_a, fig_width,
         notify(modeltype_menu.selection)
         notify(modeltype_menu.i_selected)
         # println(@__LINE__, ", ", modeltype_default[])
-
+        ### model version
         modelversion_types_temp = subtypes(modeltype_default[])
         modelversion_types[] = if isempty(modelversion_types_temp)
             [modeltype_default[]]
@@ -174,16 +236,16 @@ function screen_main_inputs!(fig, fig_a, fig_width,
         notify(modelversion_menu.selection)
         notify(modelversion_menu.i_selected)
         # println(@__LINE__, ", ", modelversion_default[])
-
-        material_types_temp = keys(modelversion_matdict)
-        material_types[] = material_types_temp; notify(material_types)
-        material_default[] = first(material_types[]); notify(material_default)
-        material_menu.options[] = zip(material_types[], material_types[])
-        material_menu.selection[] = material_default[]
-        material_menu.i_selected[] = 1
-        notify(material_menu.options)
-        notify(material_menu.selection)
-        notify(material_menu.i_selected)
+        ### model material
+        modelmaterial_types_temp = keys(modelversion_matdict)
+        modelmaterial_types[] = modelmaterial_types_temp; notify(modelmaterial_types)
+        modelmaterial_default[] = first(modelmaterial_types[]); notify(modelmaterial_default)
+        modelmaterial_menu.options[] = zip(modelmaterial_types[], modelmaterial_types[])
+        modelmaterial_menu.selection[] = modelmaterial_default[]
+        modelmaterial_menu.i_selected[] = 1
+        notify(modelmaterial_menu.options)
+        notify(modelmaterial_menu.selection)
+        notify(modelmaterial_menu.i_selected)
         # println(@__LINE__, ", ", material_default[])
     end
     # on(modeltype_menu.selection) do s
@@ -209,76 +271,15 @@ function screen_main_inputs!(fig, fig_a, fig_width,
     #     modelversion_default[] = s; notify(modelversion_default)
     #     # println(@__LINE__, ", ", modelversion_default[])
     # end
-    ## propsfile
-    propsfile_label                 = Label(f[ 2,  1], "Path to parameters dictionary:"; halign=:right)
-    propsfile_textbox               = Textbox(f[ 2,  2], placeholder="path/to/dict",
-        width=512) # w[]) # , stored_string=propsfile, displayed_string=propsfile)
-    # colsize!(f_a, 2, Relative(0.8))
-    propsfile_button                = Button(f[ 2,  3], label="Browse")
-    # propsfile                       = Observable("")
-    ## experimental datasets
-    expdatasets_label               = Label(f[ 3,  1], "Paths to experimental datasets:"; halign=:right)
-    expdatasets_textbox             = Textbox(f[ 3,  2], placeholder="path/to/experimental datasets",
-        height=5fig.scene.theme.fontsize[], width=512) # w[]) # , stored_string=input_files, displayed_string=input_files)
-    expdatasets_button              = Button(f[ 3,  3], label="Browse")
-    # colsize!(f_a, 2, Relative(0.8))
-    # expdatasets                     = Observable([""])
-    ## loading direction toggles
-    loadingdirection_label          = Label(f[ 4,  1], "Loading directions in experiments:"; halign=:right)
-    ## loading conditions
-    f_b = GridLayout(f[ 4,  2], 1, 2)
-    f_ba = GridLayout(f_b[ 1,  1], 1, 2)
-    loaddir_axial_label             = Label(f_ba[ 1,  1], "Tension/Compression:"; halign=:right)
-    loaddir_axial_toggle            = Toggle(f_ba[ 1,  2], active=true)
-    f_bb = GridLayout(f_b[ 1,  2], 1, 2)
-    loaddir_torsion_label           = Label(f_bb[ 1,  1], "Torsion:"; halign=:right)
-    loaddir_torsion_toggle          = Toggle(f_bb[ 1,  2], active=false)
-    ## number of strain increments
-    f_c = GridLayout(f[5, :], 1, 2; halign=:left)
-    f_ca = GridLayout(f_c[1, 1], 1, 2; halign=:left)
-    incnum_label                    = Label(f_ca[ 1,  1], "Number of strain increments for model curves:"; halign=:right)
-    incnum_textbox                  = Textbox(f_ca[ 1,  2], placeholder="non-zero integer",
-        width=5fig.scene.theme.fontsize[], stored_string="200", displayed_string="200", validator=Int64, halign=:left)
-    f_cb = GridLayout(f_c[1, 2], 1, 2; halign=:left)
-    stressscale_label               = Label(f_cb[ 1,  1], "Scale of stress axis:"; halign=:right)
-    stressscale_textbox             = Textbox(f_cb[ 1,  2], placeholder="non-zero integer",
-        width=5fig.scene.theme.fontsize[], stored_string="1.0", displayed_string="1.0", validator=Float64, halign=:left)
-    # aacb = GridLayout(aac[1, 2], 1, 2; halign=:right)
-    # Plot_ISVs_label       = Label(aacb[ 1,  1], "Vector of ISV symbols to plot:"; halign=:right)
-    # Plot_ISVs_textbox   = Textbox(aacb[ 1,  2], placeholder="non-zero integer",
-    #     width=0.5w[], stored_string=":alpha, :kappa", displayed_string=":alpha, :kappa", halign=:left)
 
-    plasticmodelversion[]       = modelversion_default[];                            notify(plasticmodelversion)
-    propsfile[]                 = if isnothing(propsfile_textbox.stored_string[])
-        ""
-    else
-        propsfile_textbox.displayed_string[]
-    end; notify(propsfile)
-    expdatasets[]               = [if isnothing(expdatasets_textbox.stored_string[])
-        ""
-    else
-        expdatasets_textbox.displayed_string[]
-    end]; notify(expdatasets)
-    loading_axial[]             = loaddir_axial_toggle.active[];                            notify(loading_axial)
-    loading_torsional[]         = loaddir_torsion_toggle.active[];                          notify(loading_torsional)
-    incnum[]                    = parse(Int64, incnum_textbox.displayed_string[]);          notify(incnum)
-    stressscale[]               = parse(Float64, stressscale_textbox.displayed_string[]);   notify(stressscale)
-    characteristic_equations    = characteristicequations(plasticmodelversion[]) # ;           notify(characteristic_equations)
-    dependence_equations        = dependenceequations(plasticmodelversion[]) # ;               notify(dependence_equations)
-    dependence_sliders[]        = dependencesliders(plasticmodelversion[]);                 notify(dependence_sliders)
-
-    # dynamic backend functions
-    ## browse for parameters dictionary
-    on(propsfile_button.clicks) do click
+    ## dynamic backend functions
+    on(propsfile_button.clicks) do click                # browse for parameters dictionary
         update_propsfile!(propsfile, propsfile_textbox)
     end
-    ## experimental datasets (browse)
-    on(expdatasets_button.clicks) do click
+    on(expdatasets_button.clicks) do click              # experimental datasets (browse)
         update_experimentaldata_browse!(expdatasets, expdatasets_textbox)
     end
-    ## experimental datasets (drag-and-drop)
-    on(events(fig.scene).dropped_files) do filedump
-        # println(filedump)
+    on(events(fig.scene).dropped_files) do filedump     # experimental datasets (drag-and-drop)
         update_experimentaldata_draganddrop!(expdatasets, expdatasets_textbox, filedump)
     end
 
@@ -289,14 +290,14 @@ function screen_main_inputs!(fig, fig_a, fig_width,
         characteristic_equations, dependence_equations)
 end
 
-function screen_sliders(fig, modelcalibration, modeldata, sg_sliders)
+function screen_sliders(fig, model_calibration, model_data, sg_sliders)
     ### update curves from sliders
-    @lift for (key, sgs) in zip(keys(materialconstants(modelcalibration[].modeldata.plasticmodelversion)), collectragged($sg_sliders))
+    @lift for (key, sgs) in zip(keys(model_calibration[].modeldata.params), collectragged($sg_sliders))
         on(only(sgs.sliders).value) do val
             # redefine materialproperties with new slider values
-            modeldata[].params[key] = to_value(val); notify(modeldata)
-            modelcalibration[].modeldata.params[key] = to_value(val); notify(modelcalibration)
-            plotdata_update!(modelcalibration[].modeldata.plasticmodelversion, modelcalibration)
+            model_data[].params[key] = to_value(val);                   notify(model_data)
+            model_calibration[].modeldata.params[key] = to_value(val);  notify(model_calibration)
+            plotdata_update!(model_calibration[].modeldata.plasticmodelversion, model_calibration)
         end
     end
     display(GLMakie.Screen(; title="Sliders", focus_on_show=true), fig)
@@ -311,47 +312,53 @@ function screen_main_interactions!(fig_b, fig_c, fig_d,
     characteristic_equations    = model_inputs[].characteristic_equations
     # dependence_equations        = modelinputs[].dependence_equations
     # dependence_sliders          = modelinputs[].dependence_sliders
-    # screenmain_plot!(f, g, modelinputs, modeldata, modelcalibration, sliders_sliders)
-    # println(sliders_sliders)
-    ### sub-figure for model selection, sliders, and plot
-    f = GridLayout(fig_b[ 1,  1], 3, 1)
-    f_a = GridLayout(f[1, 1], 1, 1)
-    buttons_updateinputs = Button(f_a[ 1,  1], label="Update inputs", valign=:bottom)
 
+    # sub-figure for model selection, sliders, and plot
+    f                       = GridLayout(fig_b[ 1, 1], 3, 1)
+
+    ## update inputs, set mode, and show sliders
+    ### update inputs
+    f_a                     = GridLayout(f[1, 1], 1, 1)
+    buttons_updateinputs        = Button(f_a[1, 1], label="Update inputs", valign=:bottom)
+    ### characteristic equations
     f_b = @lift GridLayout(f[2, 1], length($model_inputs.characteristic_equations), 1)
     chareqs_labels = Observable([
         constructgrid_chareqlabel!(f_b[][i, 1], eq) for (i, eq) in enumerate(characteristic_equations)])
-    # grid_sliders    = GridLayout(ba[ 2,  1], 10, 3)
-    f_c = GridLayout(f[3, 1], 1, 2)
-    f_ca = GridLayout(f_c[1, 1], 3, 1)
-    calibrationmode_label           = Label(f_ca[ 1,  1], "Calibration Mode?"; halign=:right)
-    explorermode_toggle          = Toggle(f_ca[ 2,  1], active=false)
-    # rotate!(explorermode_toggle, 90.)
-    explorermode_label           = Label(f_ca[ 3,  1], "Explorer Mode?"; halign=:left)
-    showsliders_button          = Button(f_c[1, 2], label="Show sliders")
+    ### calibration/exploration/reset buttons
+    f_c                     = GridLayout(f[3, 1], 2, 1)
+    #### toggles
+    f_ca                    = GridLayout(f_c[1, 1], 1, 3)
+    calibrationmode_label        = Label(f_ca[1, 1], "Calibration Mode?"; halign=:right)
+    explorermode_toggle         = Toggle(f_ca[1, 2]; active=false)
+    # rotate!(explorermode_toggle.blockscene, pi/2)
+    explorermode_label           = Label(f_ca[1, 3], "Explorer Mode?"; halign=:left)
+    calibrationexplorermode = Observable(explorermode_toggle.active[])
+    #### buttons
+    f_cb                    = GridLayout(f_c[2, 1], 1, 2)
+    showsliders_button          = Button(f_cb[1, 1], label="Show sliders")
+    resetsliders_button         = Button(f_cb[1, 2], label="Reset sliders")
 
-    # h = Figure(size=(600, 400))
-    #### plot
+    ## plot axis and buttons
+    ### plot
     plotdata_insert!(model_calibration[].modeldata.plasticmodelversion, model_calibration)
     model_calibration[].leg = try
         axislegend(model_calibration[].ax, position=:rb)
     catch exc
         nothing
     end; notify(model_calibration)
-    # update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], BCJMetal[])
     plotdata_update!(model_calibration[].modeldata.plasticmodelversion, model_calibration)
-
-    #### buttons below plot
-    buttons_grid = GridLayout(fig_c[ 2,  1], 1, 5)
-    buttons_labels = ["Calibrate", "Reset", "Show ISVs", "Save Props", "Export Curves"]
+    ### buttons below plot
+    buttons_grid            = GridLayout(fig_c[ 2,  1], 1, 4)
+    buttons_labels = ["Calibrate", "Macro", "Save Props", "Export Curves"]
     buttons = [Button(buttons_grid[1, i], label=bl) for (i, bl) in enumerate(buttons_labels)]
     buttons_calibrate       = buttons[1]
-    buttons_resetparams     = buttons[2]
-    buttons_showisvs        = buttons[3]
-    buttons_savecurves      = buttons[4]
-    buttons_exportcurves    = buttons[5]
+    buttons_macro           = buttons[2]
+    buttons_savecurves      = buttons[3]
+    buttons_exportcurves    = buttons[4]
 
-    # backend functions
+
+
+    # listener functions
     ## update input parameters to calibrate
     on(buttons_updateinputs.clicks) do click
         model_inputs, model_data, model_calibration, sliders_sliders = update_modelinputs!(fig_b, fig_d,
@@ -367,22 +374,27 @@ function screen_main_interactions!(fig_b, fig_c, fig_d,
         chareqs_labels[] = [
             constructgrid_chareqlabel!(f_b[][i, 1], eq) for (i, eq) in enumerate(model_calibration[].modeldata.modelinputs.characteristic_equations)]
         notify(chareqs_labels)
-        # println(sliders_sliders)
-        # screenmain_plot!(f, g, modelinputs, modeldata, modelcalibration, sliders_sliders)
+    end
+    on(explorermode_toggle.active) do toggle
+        calibrationexplorermode[] = toggle; notify(calibrationexplorermode)
     end
     ## show sliders
     on(showsliders_button.clicks) do click
         # println(sliders_sliders)
         # screen_sliders(fig_d, model_calibration, model_data, sliders_sliders)
-        if explorermode_toggle.active[]
+        if calibrationexplorermode[]
             # println(dorasliders(model_calibration[].modeldata.plasticmodelversion))
-            doratheexplorer_sliders(fig_d, model_calibration, model_data, sliders_sliders, dorasliders(model_calibration[].modeldata.plasticmodelversion))
+            clearplot!(model_calibration)
+            doratheexplorer_sliders(model_calibration, model_data, dorasliders(model_calibration[].modeldata.plasticmodelversion)) # (fig_d, model_calibration, model_data, sliders_sliders, dorasliders(model_calibration[].modeldata.plasticmodelversion))
         else
             screen_sliders(fig_d, model_calibration, model_data, sliders_sliders)
         end
     end
-    ## buttons
-    ### calibrate parameters
+    ## reset sliders/parameters
+    on(resetsliders_button.clicks) do click
+        reset_sliders!(sliders_sliders, materialconstants(model_calibration[].modeldata.plasticmodelversion), model_data, model_calibration)
+    end
+    ## calibrate parameters
     on(buttons_calibrate.clicks) do click
         calibratingtoggles_indices = findall(t->t.active[], toggles[])
         if !isempty(calibratingtoggles_indices)
@@ -649,45 +661,26 @@ function screen_main_interactions!(fig_b, fig_c, fig_d,
             end
         end
     end
-    ### reset sliders/parameters
-    on(buttons_resetparams.clicks) do click
-        # # for (i, c, sgc) in zip(range(1, nsliders), C_0, sg_sliders)
-        # #     params[][BCJinator.constant_string(i)] = to_value(c);         notify(params)
-        # #     set_close_to!(sgc.sliders[1], c)
-        # #     sgc.sliders[1].value[] = to_value(c);                   notify(sgc.sliders[1].value)
-        # # end
-        # asyncmap((i, c, sgc)->begin # attempt multi-threading
-        #         params[][BCJinator.constant_string(i)] = to_value(c);     notify(params)
-        #         set_close_to!(sgc.sliders[1], c)
-        #         sgc.sliders[1].value[] = to_value(c);               notify(sgc.sliders[1].value)
-        #     end, range(1, nsliders), C_0, sg_sliders)
-        reset_sliders!(sliders_sliders, model_data, model_calibration)
-    end
-    ### show isv plot
-    on(buttons_showisvs.clicks) do click
+    ## perform user-macro
+    on(buttons_macro.clicks) do click
         screen_isvs = GLMakie.Screen(; title="ISVs") # , focus_on_show=true)
         display(screen_isvs, fig_d)
     end
-    ### save parameters
+    ## save parameters
     on(buttons_savecurves.clicks) do click
-        # propsfile = modelcalibration[].modeldata.modelinputs.propsfile
-        # props_dir, props_name = dirname(propsfile), basename(propsfile)
-        # "Save new props file"
         propsfile_new = save_file(; filterlist="csv")
         if propsfile_new != ""
             dict = model_calibration[].modeldata.materialproperties
             for (key, val) in model_calibration[].modeldata.params
                 dict[key] = val
             end
-            CSV.write(propsfile_new, DataFrame(dict))
-            # println("New props file written to: \"", propsfile_new, "\"")
+            CSV.write(propsfile_new, dict)
         end
     end
-    ### export curves
+    ## export curves
     on(buttons_exportcurves.clicks) do click
         # props_dir, props_name = dirname(propsfile[]), basename(propsfile[])
         curvefile_new = save_file(; filterlist="csv")
-        # println([curvefile_new])
         if curvefile_new != ""
             header, df = [], DataFrame()
             for (i, test_name, test_strain, test_stress) in zip(range(1, model_calibration[].modeldata.nsets), model_calibration[].modeldata.test_cond["Name"], model_calibration[].modeldata.test_data["Model_E"], model_calibration[].modeldata.test_data["Model_VM"])
@@ -698,60 +691,46 @@ function screen_main_interactions!(fig_b, fig_c, fig_d,
                     "VMstress" * test_name  => test_stress))
             end
             CSV.write(curvefile_new, df, header=header)
-            # println("Model curves written to: \"", curvefile_new, "\"")
         end
     end
 
     return nothing
 end
 
-function screen_main()
+function screen_main(x_label, y_label)
     screen_main = GLMakie.Screen(; title="PlasticityCalibratinator.jl", fullscreen=true, focus_on_show=true)
     fig_layout = GridLayout(2, 1)
+    # main figure
     fig = Figure(size=(900, 600), figure_padding=(30, 10, 10, 10), layout=fig_layout) # , tellheight=false, tellwidth=false)
     # Box(fig[1, 1], color=(:red, 0.2), strokewidth=0)
     # Box(fig[2, 1], color=(:red, 0.2), strokewidth=0)
-    # f = Figure(figure_padding=(0.5, 0.95, 0.2, 0.95), layout=GridLayout(3, 1))
     fig_width = @lift first(widths($(fig.scene.viewport)))
-    # w = @lift widths($(f.scene))[1]
 
-    # sub-figure for input parameters of calibration study
+    ## sub-figure for input parameters of calibration study
     fig_a = GridLayout(fig[ 1,  1], 1, 1)
     # Box(a[1, 1], color=(:red, 0.2), strokewidth=0)
-    # sub-figure for model selection, sliders, and plot
+
+    ## sub-figure for model selection, sliders, and plot
     fig_b = GridLayout(fig[ 2,  1], 1, 2)
+    fig_c = GridLayout(fig_b[ 1,  2], 2, 1)
     # Box(b[1, 1], color=(:red, 0.2), strokewidth=0)
     # Box(b[1, 2], color=(:red, 0.2), strokewidth=0)
-    fig_c = GridLayout(fig_b[ 1,  2], 2, 1)
     # Box(c[1, 1], color=(:red, 0.2), strokewidth=0)
-    # # # # colsize!(f.layout, 1, Relative(0.45))
-    # # # # colsize!(f.layout, 2, Relative(0.45))
-    # # # colsize!(f.layout, 2, Aspect(1, 1.0))
-    # # rowsize!(f.layout, 1, Relative(0.3))
-    # # rowsize!(f.layout, 2, Relative(0.7))
-    # # rowsize!(b, 1, 3\2w[])
     rowsize!(fig_b, 1, Relative(0.8))
 
-    # plasticmodelversion         ::Type{<:AbstractPlasticity}    = AbstractPlasticity
-    # propsfile                   ::String                = ""
-    # expdatasets                 ::Vector{String}        = [""]
-    # loading_axial               ::Bool                  = true
-    # loading_torsional           ::Bool                  = false
-    # incnum                      ::Integer               = 200
-    # stressscale                 ::AbstractFloat         = 1e6
-    # characteristic_equations    ::Vector{String}        = [""]
-    # dependence_equations        ::Vector{String}        = [""]
-    # dependence_sliders                                  = []
+    # model observables
     plasticmodelversion         = Observable(AbstractPlasticity)    # ::Type{<:AbstractPlasticity}
-    propsfile                   = Observable("")            # ::String
-    expdatasets                 = Observable([""])          # ::Vector{String}
-    loading_axial               = Observable(true)          # ::Bool
-    loading_torsional           = Observable(false)         # ::Bool
-    incnum                      = Observable(200)           # ::Integer
-    stressscale                 = Observable(1e6)           # ::AbstractFloat
-    characteristic_equations    = [' ']          # ::Vector{String}
-    dependence_equations        = [' ']          # ::Vector{String}
-    dependence_sliders          = Observable([])            # ::Vector{Any}
+    propsfile                   = Observable("")                    # ::String
+    expdatasets                 = Observable([""])                  # ::Vector{String}
+    loading_axial               = Observable(true)                  # ::Bool
+    loading_torsional           = Observable(false)                 # ::Bool
+    incnum                      = Observable(200)                   # ::Integer
+    stressscale                 = Observable(1e6)                   # ::AbstractFloat
+    characteristic_equations    = [' ']                             # ::Vector{String}
+    dependence_equations        = [' ']                             # ::Vector{String}
+    dependence_sliders          = Observable([])                    # ::Vector{Any}
+
+    # construct input widgets
     inputobjects                = screen_main_inputs!(fig, fig_a, fig_width,
         plasticmodelversion, propsfile, expdatasets,
         loading_axial, loading_torsional,
@@ -768,7 +747,9 @@ function screen_main()
     stressscale_textbox         = inputobjects[7]
     characteristic_equations    = inputobjects[8]
     dependence_equations        = inputobjects[9]
-    model_inputs                 = Observable(ModelInputs{plasticmodelversion[]}(
+
+    # construct model inputs
+    model_inputs                = Observable(ModelInputs{plasticmodelversion[]}(
         plasticmodelversion[], propsfile[], expdatasets[],
         loading_axial[], loading_torsional[],
         incnum[], stressscale[],
@@ -777,20 +758,12 @@ function screen_main()
         dependence_sliders[]
     ))
 
-    fig_ax = Axis(fig_c[ 1,  1],
-        xlabel="True Strain (mm/mm)",
-        ylabel="True Stress (Pa)",
+    fig_ax = Axis(fig_c[ 1,  1], xlabel=x_label, ylabel=y_label,
         aspect=1.0, tellheight=true, tellwidth=true) # , height=3\2w[], width=w[])
     # xlims!(ax, (0., nothing)); ylims!(ax, (min_stress, max_stress))
-    # xlims!(ax_isv, (0., nothing)); ylims!(ax_isv, (min_stress, max_stress))
-    # BCJinator.plot_sets!(ax, ax_isv, dataseries[], bcj[], Plot_ISVs[])
     # leg = Observable(axislegend(ax, position=:rb))
-    # BCJinator.update!(dataseries[], bcj[], incnum[], istate[], Plot_ISVs[], BCJMetal[])
 
-    # modeldata                       = Observable(ModelData(
-    #     plasticmodelversion, materialproperties{plasticmodelversion},
-    #     incnum, stressscale,
-    # ))
+    # construct model data
     model_data                       = Observable(modeldata(model_inputs[].plasticmodelversion, model_inputs[], materialproperties(model_inputs[].plasticmodelversion)))
     # modeldataseries                 = Observable(dataseries_init(plasticmodelversion[], modeldata[].nsets, modeldata[].test_data))
     fig_axleg = try
@@ -799,9 +772,15 @@ function screen_main()
         nothing
     end
     # println(keys(model_data[].params))
+
+    # construct model calibration
     model_calibration                = Observable(ModelCalibration(
         model_data[], fig_ax, plotdata_initialize(model_data[].modelinputs.plasticmodelversion, model_data[].nsets, model_data[].test_data), fig_axleg))
 
+
+
+    # setup the layout and widgets for the lower-half of the main figure and additional screens
+    ## sliders screen
     fig_d = Figure(size=(450, 600))
     sliders_grid    = @lift GridLayout(fig_d[1, 1], length($model_inputs.dependence_equations), 3)
     sliders_toggles = Observable([ # add toggles for which to calibrate
@@ -812,20 +791,19 @@ function screen_main()
         constructgrid_slider!(sliders_grid[][i, 3], model_inputs[].dependence_sliders[i]) for i in range(1, length(model_inputs[].dependence_sliders))])
     # println(sliders_sliders[])
 
+    ## populate and instantiate model interactions
     screen_main_interactions!(fig_b, fig_c, fig_d,
         plasticmodeltypeversion_menu, propsfile_textbox, expdatasets_textbox,
         loaddir_axial_toggle, loaddir_torsion_toggle,
         incnum_textbox, stressscale_textbox, model_inputs, model_data, model_calibration,
         sliders_grid, sliders_toggles, sliders_labels, sliders_sliders)
-    #### plot
-    # screenmain_plot!(fig, c, modelinputs, modeldata, modelcalibration, sliders_sliders)
+
+
+
     display(screen_main, fig) # that's all folks!
-    # on(fig.scene.viewport) do foo
-    #     w[] = first(widths(fig.scene.viewport)); notify(w)
-    # end
     return nothing
 end
 
-function main()
-    screen_main()
+function main(; x_label="True Strain (mm/mm)", y_label="True Stress (Pa)")
+    screen_main(x_label, y_label)
 end
