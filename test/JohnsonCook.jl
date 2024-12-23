@@ -10,7 +10,7 @@ set_theme!(theme_latexfonts())
 
 abstract type JC <: AbstractPlasticity end
 
-materialprops = Dict(
+materialprops_JC = Dict(
     # Comment,Johnson & Cook 1985
     "A"     => 835.014717457143,
     "B"     => 810.9199208476191,
@@ -21,7 +21,7 @@ materialprops = Dict(
     "Tm"    => 1793.0,
     "er0"   => 1.0,
 )
-materialconsts = collect(
+materialconsts_JC = collect(
     "A"     => 835.014717457143,
     "B"     => 810.9199208476191,
     "n"     => 0.5152083333333339,
@@ -36,18 +36,18 @@ constantsrange_max = Dict(
     "m"     => 0.5,
 )
 
-PlasticityCalibratinator.materialproperties(::Type{JC}) = materialprops
-PlasticityCalibratinator.materialconstants(::Type{JC}) = materialconsts
+PlasticityCalibratinator.materialproperties(::Type{JC}) = materialprops_JC
+PlasticityCalibratinator.materialconstants(::Type{JC}) = materialconsts_JC
 
 PlasticityCalibratinator.characteristicequations(::Type{JC}) = [
     L"\sigma = (A + B\mathrm{exp}(n)) * (1 + C*\log(\epsilon^{*})) * (1 - (T^{*})^{m}))"]
 PlasticityCalibratinator.dependenceequations(::Type{JC})     = [L"A", L"B", L"n", L"C", L"m"]
 PlasticityCalibratinator.dependencesliders(::Type{JC})       = [
-    (label=L"A", range=range(materialconsts["A"] - constantsrange_max["A"], materialconsts["A"] + constantsrange_max["A"]; length=1_000), format="{:.3e}", startvalue=materialconsts["A"]),
-    (label=L"B", range=range(materialconsts["B"] - constantsrange_max["B"], materialconsts["B"] + constantsrange_max["B"]; length=1_000), format="{:.3e}", startvalue=materialconsts["B"]),
-    (label=L"n", range=range(materialconsts["n"] - constantsrange_max["n"], materialconsts["n"] + constantsrange_max["n"]; length=1_000), format="{:.3e}", startvalue=materialconsts["n"]),
-    (label=L"C", range=range(materialconsts["C"] - constantsrange_max["C"], materialconsts["C"] + constantsrange_max["C"]; length=1_000), format="{:.3e}", startvalue=materialconsts["C"]),
-    (label=L"m", range=range(materialconsts["m"] - constantsrange_max["m"], materialconsts["m"] + constantsrange_max["m"]; length=1_000), format="{:.3e}", startvalue=materialconsts["m"]),
+    (label=L"A", range=range(materialconsts_JC["A"] - constantsrange_max["A"], materialconsts_JC["A"] + constantsrange_max["A"]; length=1_000), format="{:.3e}", startvalue=materialconsts_JC["A"]),
+    (label=L"B", range=range(materialconsts_JC["B"] - constantsrange_max["B"], materialconsts_JC["B"] + constantsrange_max["B"]; length=1_000), format="{:.3e}", startvalue=materialconsts_JC["B"]),
+    (label=L"n", range=range(materialconsts_JC["n"] - constantsrange_max["n"], materialconsts_JC["n"] + constantsrange_max["n"]; length=1_000), format="{:.3e}", startvalue=materialconsts_JC["n"]),
+    (label=L"C", range=range(materialconsts_JC["C"] - constantsrange_max["C"], materialconsts_JC["C"] + constantsrange_max["C"]; length=1_000), format="{:.3e}", startvalue=materialconsts_JC["C"]),
+    (label=L"m", range=range(materialconsts_JC["m"] - constantsrange_max["m"], materialconsts_JC["m"] + constantsrange_max["m"]; length=1_000), format="{:.3e}", startvalue=materialconsts_JC["m"]),
 ]
 
 doramat = collect(
@@ -282,11 +282,11 @@ end
 
 function PlasticityCalibratinator.plotdata_straincontrolkernel(::Type{JC}, temp, epsrate, emax, incnum, params)::NamedTuple
     # println("Setup: emax for set ", i, " = ", emax)
-    println("θ=", temp, ", ϵ̇=", epsrate, ", ϵₙ=", emax, ", N=", incnum)
-    jc_loading  = JCStrainControl(temp, epsrate, emax, incnum, params)
-    jc_history  = kernel(JC, jc_loading)[3]
+    # println("θ=", temp, ", ϵ̇=", epsrate, ", ϵₙ=", emax, ", N=", incnum)
+    loading = JCStrainControl(temp, epsrate, emax, incnum, params)
+    history = kernel(JC, loading)[3]
     # println("Solved: emax for set ", i, " = ", maximum(jc_history.ϵ))
-    return (ϵ=jc_history.ϵ, σ=jc_history.σ, σvM=jc_history.σ)
+    return (ϵ=history.ϵ, σ=history.σ, σvM=history.σ)
 end
 
 @inline function PlasticityCalibratinator.plotdata_updatekernel(::Type{JC}, test_data, test_cond, incnum, params, i)::NamedTuple
@@ -297,11 +297,11 @@ end
 
 function PlasticityCalibratinator.plotdata_update!(::Type{JC}, modelcalibration)
     # dataseries, incnum, Scale_MPa
+    for (key, val) in modelcalibration[].modeldata.params
+        modelcalibration[].modeldata.materialproperties[key] = val
+    end
     @sync @distributed for i in range(1, modelcalibration[].modeldata.nsets)
     # for i in range(1, modelcalibration.modeldata.nsets)
-        for (key, val) in modelcalibration[].modeldata.params
-            modelcalibration[].modeldata.materialproperties[key] = val
-        end
         sol = plotdata_updatekernel(JC, modelcalibration[].modeldata.test_data, modelcalibration[].modeldata.test_cond, modelcalibration[].modeldata.incnum, modelcalibration[].modeldata.materialproperties, i)
         modelcalibration[].modeldata.test_data["Model_S"][i]    .= sol.σ .* modelcalibration[].modeldata.stressscale
         modelcalibration[].modeldata.test_data["Model_VM"][i]   .= sol.σvM
@@ -402,20 +402,20 @@ function PlasticityCalibratinator.plotdora_insert!(::Type{JC}, model_calibration
     end
 end
 
-function PlasticityCalibratinator.plotdora_update!(::Type{JC}, modelcalibration)
+function PlasticityCalibratinator.plotdora_update!(::Type{JC}, model_calibration)
     # dataseries, incnum, Scale_MPa
     # println(modelcalibration[].modeldata.nsets)
-    @sync @distributed for i in range(1, modelcalibration[].modeldata.nsets)
+    for (key, val) in model_calibration[].modeldata.params
+        model_calibration[].modeldata.materialproperties[key] = val
+    end
+    @sync @distributed for i in range(1, model_calibration[].modeldata.nsets)
     # for i in range(1, modelcalibration.modeldata.nsets)
-        for (key, val) in modelcalibration[].modeldata.params
-            modelcalibration[].modeldata.materialproperties[key] = val
-        end
         # sol = plotdata_updatekernel(JC, modelcalibration[].modeldata.test_data, modelcalibration[].modeldata.test_cond, modelcalibration[].modeldata.incnum, modelcalibration[].modeldata.materialproperties, i)
-        sol = plotdata_straincontrolkernel(JC, modelcalibration[].modeldata.test_cond["Temp"][i], modelcalibration[].modeldata.test_cond["StrainRate"][i], modelcalibration[].modeldata.test_cond["StrainFinal"][i], modelcalibration[].modeldata.incnum, modelcalibration[].modeldata.materialproperties)
-        modelcalibration[].modeldata.test_data["Model_S"][i]    .= sol.σ .* modelcalibration[].modeldata.stressscale
-        modelcalibration[].modeldata.test_data["Model_VM"][i]   .= sol.σvM
-        modelcalibration[].dataseries[1][i][].y .= modelcalibration[].modeldata.test_data["Model_VM"][i]
-        for ds in modelcalibration[].dataseries
+        sol = plotdata_straincontrolkernel(JC, model_calibration[].modeldata.test_cond["Temp"][i], model_calibration[].modeldata.test_cond["StrainRate"][i], model_calibration[].modeldata.test_cond["StrainFinal"][i], model_calibration[].modeldata.incnum, model_calibration[].modeldata.materialproperties)
+        model_calibration[].modeldata.test_data["Model_S"][i]    .= sol.σ .* model_calibration[].modeldata.stressscale
+        model_calibration[].modeldata.test_data["Model_VM"][i]   .= sol.σvM
+        model_calibration[].dataseries[1][i][].y .= model_calibration[].modeldata.test_data["Model_VM"][i]
+        for ds in model_calibration[].dataseries
             notify(ds[i])
         end
     end
