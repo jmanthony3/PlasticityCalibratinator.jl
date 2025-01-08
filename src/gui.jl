@@ -4,7 +4,7 @@ using GLMakie
 using InteractiveUtils: subtypes
 using JSON
 using LaTeXStrings
-using PlasticityBase
+using PlasticityBase # scrap this and switch to [`ContinuumMechanicsBase.jl`](https://github.com/TRACER-LULab/ContinuumMechanicsBase.jl)
 
 const EquationLabel = Union{Char, String, LaTeXString}
 
