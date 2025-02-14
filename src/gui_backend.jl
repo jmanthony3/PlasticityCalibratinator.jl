@@ -78,16 +78,16 @@ constructgrid_chareqlabel!(grid, eqstr) = Label(grid, eqstr; halign=:left)
 constructgrid_depeqlabel!(grid, eqstr)  = constructgrid_chareqlabel!(grid, eqstr)
 constructgrid_toggle!(grid)             = Toggle(grid; active=false)
 
-function constructgrid_slider!(grid, labels)
+function constructgrid_slider!(grid, sliders)
     # println(labels)
-    if isa(labels, NamedTuple)
+    if isa(sliders, NamedTuple)
         # println(@__LINE__, ", Returning...")
-        return SliderGrid(grid[1, 1], labels)
+        return SliderGrid(grid[1, 1], sliders)
     else
         return [begin
             # println((i, label))
-            constructgrid_slider!(grid[ i,  1], label)
-        end for (i, label) in enumerate(labels)]
+            constructgrid_slider!(grid[ i,  1], slider)
+        end for (i, slider) in enumerate(sliders)]
     end
 end
 
