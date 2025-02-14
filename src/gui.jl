@@ -4,6 +4,7 @@ using GLMakie
 using InteractiveUtils: subtypes
 using JSON
 using LaTeXStrings
+using OrderedCollections
 using PlasticityBase # scrap this and switch to [`ContinuumMechanicsBase.jl`](https://github.com/TRACER-LULab/ContinuumMechanicsBase.jl)
 
 const EquationLabel = Union{Char, String, LaTeXString}
@@ -32,9 +33,9 @@ mutable struct ModelData{T<:AbstractPlasticity}
     nsets               ::Int64
     test_data           ::Dict{String, Vector}
     test_cond           ::Dict{String, Vector}
-    materialproperties  ::Dict{String, Float64}
-    params              ::Dict{String, Float64}
-    C_0                 ::Dict{String, Float64}
+    materialproperties  ::OrderedDict{String, Float64}
+    params              ::OrderedDict{String, Float64}
+    C_0                 ::OrderedDict{String, Float64}
     incnum              ::Integer
     stressscale         ::AbstractFloat
 end

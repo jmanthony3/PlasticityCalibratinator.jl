@@ -184,7 +184,7 @@ function update_modelinputs!(fig_b, fig_d,
     # println(typeof([
     #     sg_slider!(sliders_grid[][i, 3], modelinputs[].dependence_sliders[i]) for i in range(1, length(modelinputs[].dependence_sliders))]))
     sliders_sliders = Observable([
-        constructgrid_slider!(sliders_grid[][i, 3], model_inputs[].dependence_sliders[i]) for i in range(1, length(model_inputs[].dependence_sliders))])
+        constructgrid_slider!(sliders_grid[][i, 3], d) for (i, d) in enumerate(model_inputs[].dependence_sliders)])
     # reset_sliders!(sliders_sliders, model_data, model_calibration)
     model_calibration[].dataseries           = plotdata_initialize(model_inputs[].plasticmodelversion,
         model_calibration[].modeldata.nsets, model_calibration[].modeldata.test_data);                        notify(model_calibration)

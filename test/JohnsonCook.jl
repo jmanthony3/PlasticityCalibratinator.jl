@@ -3,6 +3,7 @@ using DataFrames
 using Distributed
 using GLMakie
 using LaTeXStrings
+using OrderedCollections
 using PlasticityBase
 using PlasticityCalibratinator
 
@@ -10,7 +11,7 @@ set_theme!(theme_latexfonts())
 
 abstract type JC <: AbstractPlasticity end
 
-materialprops_JC = Dict(
+materialprops_JC = OrderedDict(
     # Comment,Johnson & Cook 1985
     "A"     => 835.014717457143,
     "B"     => 810.9199208476191,
@@ -73,7 +74,7 @@ struct JCStrainControl{T<:AbstractFloat} <: AbstractLoading
     ϵ_dot   ::T
     ϵₙ      ::T
     N       ::Integer
-    params  ::Dict{String, T}
+    params  ::OrderedDict{String, T}
 end
 
 mutable struct JCConfigurationCurrent{T<:AbstractFloat} <: AbstractConfigurationCurrent
@@ -271,12 +272,13 @@ end
 
 function PlasticityCalibratinator.plotdata_insert!(::Type{JC}, model_calibration)
     # ax, dataseries, Scale_MPa
+    color_range = model_calibration[].modeldata.nsets > 1 ? (1, model_calibration[].modeldata.nsets) : (1, 2)
     for i in range(1, model_calibration[].modeldata.nsets)
         # println(i)
         scatter!(model_calibration[].ax,    @lift(Point2f.($(model_calibration[].dataseries[1][i]).x, $(model_calibration[].dataseries[1][i]).y)),
-            color=i, colormap=:viridis, colorrange=(1, model_calibration[].modeldata.nsets), label="Data - " * model_calibration[].modeldata.test_cond["Name"][i])
+            color=i, colormap=:viridis, colorrange=color_range, label="Data - " * model_calibration[].modeldata.test_cond["Name"][i])
         lines!(model_calibration[].ax,      @lift(Point2f.($(model_calibration[].dataseries[2][i]).x, $(model_calibration[].dataseries[2][i]).y .* model_calibration[].modeldata.stressscale)),
-            color=i, colormap=:viridis, colorrange=(1, model_calibration[].modeldata.nsets), label="VM Model - " * model_calibration[].modeldata.test_cond["Name"][i])
+            color=i, colormap=:viridis, colorrange=color_range, label="VM Model - " * model_calibration[].modeldata.test_cond["Name"][i])
     end
 end
 
