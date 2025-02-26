@@ -1,7 +1,8 @@
 using Base: ImmutableDict
+using OrderedCollections
 using PlasticityBase
 
-function materialproperties(::Type{<:AbstractPlasticity},   material::String)::Dict{String, Float64} end
+function materialproperties(::Type{<:AbstractPlasticity},   material::String)::OrderedDict{String, Float64} end
 function materialconstants(::Type{<:AbstractPlasticity},    material::String)::Vector{NamedTuple{key, value}} end
 function materialdora(::Type{<:AbstractPlasticity},         material::String)::Vector{NamedTuple{key, value}} end
 
